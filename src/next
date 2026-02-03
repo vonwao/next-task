@@ -1084,6 +1084,108 @@ cmd_preview() {
   echo -e "${DIM}Run 'next' or 'next run' to execute this task.${NC}"
 }
 
+cmd_add() {
+  # Parse arguments
+  local description=""
+  local agent="$DEFAULT_AGENT"
+  local depends=""
+  local commit_prefix="feat"
+  
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      @claude)
+        agent="claude"
+        shift
+        ;;
+      @codex)
+        agent="codex"
+        shift
+        ;;
+      --depends)
+        shift
+        depends="$1"
+        shift
+        ;;
+      --depends=*)
+        depends="${1#--depends=}"
+        shift
+        ;;
+      -*)
+        echo -e "${RED}Unknown option: $1${NC}"
+        echo "Usage: next add \"Task description\" [@claude|@codex] [--depends T<n>]"
+        return 1
+        ;;
+      *)
+        if [ -z "$description" ]; then
+          description="$1"
+        fi
+        shift
+        ;;
+    esac
+  done
+  
+  # Validate description
+  if [ -z "$description" ]; then
+    echo -e "${RED}Error: Task description required${NC}"
+    echo "Usage: next add \"Task description\" [@claude|@codex] [--depends T<n>]"
+    return 1
+  fi
+  
+  # Ensure TASKS.md exists
+  if [ ! -f "$TASKS_FILE" ]; then
+    echo -e "${RED}Error: TASKS.md not found. Run 'next init' first.${NC}"
+    return 1
+  fi
+  
+  # Generate next task ID
+  local max_id=0
+  for id in $(grep -oE '^### T[0-9]+:' "$TASKS_FILE" 2>/dev/null | grep -oE '[0-9]+'); do
+    [ "$id" -gt "$max_id" ] && max_id="$id"
+  done
+  local next_id=$((max_id + 1))
+  local task_id="T$next_id"
+  
+  # Generate commit message from title
+  local title_lower=$(echo "$description" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9 ]//g' | sed 's/  */ /g' | sed 's/ /-/g')
+  local commit_msg="$commit_prefix: $title_lower"
+  
+  # Build task block
+  local task_block=""
+  
+  # Check for template
+  local template_file="$PROJECT_DIR/templates/default.md"
+  if [ -f "$template_file" ]; then
+    # Use template with variable substitution
+    task_block=$(cat "$template_file" | \
+      sed "s/{{ID}}/$task_id/g" | \
+      sed "s/{{TITLE}}/$description/g" | \
+      sed "s/{{AGENT}}/$agent/g" | \
+      sed "s/{{DEPENDS}}/${depends:-(none)}/g" | \
+      sed "s/{{COMMIT_PREFIX}}/$commit_prefix/g" | \
+      sed "s/{{TITLE_LOWER}}/$title_lower/g" | \
+      sed "s/{{COMMIT}}/$commit_msg/g" | \
+      sed '/{{DESCRIPTION}}/d')
+  else
+    # Default format
+    task_block="### $task_id: $description @$agent"
+    [ -n "$depends" ] && task_block="$task_block
+**Depends:** $depends"
+    task_block="$task_block
+**Artifacts:** 
+**Commit:** \`$commit_msg\`
+
+Describe the task implementation here."
+  fi
+  
+  # Append to TASKS.md
+  echo "" >> "$TASKS_FILE"
+  echo "$task_block" >> "$TASKS_FILE"
+  
+  echo -e "${GREEN}✅ Added task:${NC} $task_id: $description ${CYAN}@$agent${NC}"
+  [ -n "$depends" ] && echo -e "${DIM}   Depends: $depends${NC}"
+  echo -e "${DIM}   Commit: $commit_msg${NC}"
+}
+
 cmd_help() {
   echo "next-task v2: Task queue runner for AI coding agents"
   echo ""
@@ -1091,6 +1193,7 @@ cmd_help() {
   echo ""
   echo "Commands:"
   echo "  (default)  Run next ready task (single task, then stop)"
+  echo "  add        ➕ Add a new task to TASKS.md"
   echo "  loop       🔄 Ralph mode: run tasks continuously until done"
   echo "  preview    👀 Dry run: show what would happen"
   echo "  status     Show task status"
@@ -1106,6 +1209,8 @@ cmd_help() {
   echo ""
   echo "Examples:"
   echo "  next                     # Run one task"
+  echo "  next add \"Task name\" @claude  # Add task for Claude"
+  echo "  next add \"Task\" --depends T5  # Add task with dependency"
   echo "  next loop                # Run all tasks continuously (Ctrl+C to stop)"
   echo "  next loop 10             # Run max 10 iterations"
   echo "  next loop 0 --push       # Unlimited, push after each task"
@@ -1133,6 +1238,7 @@ case "${1:-run}" in
   commit|c) cmd_commit "$2" ;;
   loop)     cmd_loop "$2" "$3" ;;
   preview|p) cmd_preview ;;
+  add|a)    shift; cmd_add "$@" ;;
   run|"")   cmd_run ;;
   help|--help|-h) cmd_help ;;
   *)
