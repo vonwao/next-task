@@ -12,6 +12,7 @@
 * **Commands**
   * [next run](commands/run.md)
   * [next loop](commands/loop.md)
+  * [next preview](commands/preview.md)
   * [next done](commands/done.md)
   * [next commit](commands/commit.md)
   * [next skip](commands/skip.md)
