@@ -346,7 +346,7 @@ run_agent() {
   
   if [ "$TASK_AGENT" = "codex" ]; then
     CMD="codex exec"
-    $YOLO && CMD="$CMD --full-auto"
+    $YOLO && CMD="$CMD --dangerously-bypass-approvals-and-sandbox"
     
     # Build prompt with AGENT.md context
     TEMP_PROMPT=$(mktemp)
@@ -584,6 +584,9 @@ cmd_run() {
   # Mark in progress
   set_in_progress "$TASK_ID"
   
+  # Capture HEAD before agent runs
+  local head_before=$(git rev-parse --short HEAD 2>/dev/null || echo "")
+  
   # Build prompt and run agent
   local prompt=$(build_prompt)
   run_agent "$prompt"
@@ -592,9 +595,18 @@ cmd_run() {
   echo ""
   echo -e "${GREEN}Agent finished.${NC}"
   
-  # Auto-commit if specified
+  # Capture HEAD after agent (agent might have committed)
+  local head_after=$(git rev-parse --short HEAD 2>/dev/null || echo "")
   local commit_hash=""
-  if [ -n "$TASK_COMMIT" ]; then
+  
+  # Did the agent commit?
+  if [ "$head_after" != "$head_before" ]; then
+    commit_hash="$head_after"
+    echo -e "${CYAN}Agent committed: $commit_hash${NC}"
+  fi
+  
+  # Auto-commit if specified AND agent didn't commit
+  if [ -n "$TASK_COMMIT" ] && [ -z "$commit_hash" ]; then
     echo ""
     echo -e "${BLUE}Auto-committing:${NC} $TASK_COMMIT"
     git add -A
@@ -646,15 +658,26 @@ cmd_done() {
     echo -e "${GREEN}Validation passed${NC}"
   fi
   
-  # Commit if specified
+  # Get commit hash - either from auto-commit or current HEAD
   local commit_hash=""
+  
+  # Try auto-commit if specified and there are changes
   if [ -n "$TASK_COMMIT" ]; then
-    echo -e "${BLUE}Committing:${NC} $TASK_COMMIT"
     git add -A
-    if git commit -m "$TASK_COMMIT"; then
+    if git diff --cached --quiet 2>/dev/null; then
+      # No staged changes, use current HEAD
       commit_hash=$(git rev-parse --short HEAD 2>/dev/null || echo "")
-      echo -e "${GREEN}Committed ($commit_hash)${NC}"
+      echo -e "${CYAN}Using existing commit: $commit_hash${NC}"
+    else
+      echo -e "${BLUE}Committing:${NC} $TASK_COMMIT"
+      if git commit -m "$TASK_COMMIT"; then
+        commit_hash=$(git rev-parse --short HEAD 2>/dev/null || echo "")
+        echo -e "${GREEN}Committed ($commit_hash)${NC}"
+      fi
     fi
+  else
+    # No commit message specified, just record current HEAD
+    commit_hash=$(git rev-parse --short HEAD 2>/dev/null || echo "")
   fi
   
   # Mark done
