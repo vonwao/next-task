@@ -4,7 +4,7 @@ Dogfooding: using next-task to build next-task.
 
 ## P2: Medium Priority Features
 
-### T1: Specs directory support @codex
+### T1: Specs directory support @codex ✅ (done: 2026-02-03, 4673ecc)
 **Artifacts:** src/next (modified)
 **Commit:** `feat: add specs directory support`
 
@@ -24,7 +24,7 @@ Example task format:
 
 Test by creating a specs/test.md and a task that references it.
 
-### T2: Progress notifications @codex
+### T2: Progress notifications @codex ✅ (done: 2026-02-03, 26ae514)
 **Depends:** T1
 **Artifacts:** src/next (modified)
 **Commit:** `feat: add progress notifications`
