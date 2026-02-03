@@ -216,7 +216,7 @@ run_agent() {
   
   if [ "$TASK_AGENT" = "codex" ]; then
     CMD="codex"
-    $YOLO && CMD="$CMD --approval-mode full-auto"
+    $YOLO && CMD="$CMD --ask-for-approval never"
     
     # Codex: write combined prompt with context
     TEMP_PROMPT=$(mktemp)
@@ -403,8 +403,8 @@ show_status() {
     fi
     
     # Parse and check deps - extract body until next ### or ## line
-    local task_body=""
-    local in_task=false
+    task_body=""
+    in_task=false
     while IFS= read -r bodyline; do
       if [ "$bodyline" = "$line" ]; then
         in_task=true
@@ -522,11 +522,11 @@ EOF
     fi
     
     # Find highest task number
-    local last_num=$(grep -oE '^### T([0-9]+):' "$TASKS_FILE" | grep -oE '[0-9]+' | sort -n | tail -1 || echo "0")
-    local new_num=$((last_num + 1))
+    last_num=$(grep -oE '^### T([0-9]+):' "$TASKS_FILE" | grep -oE '[0-9]+' | sort -n | tail -1 || echo "0")
+    new_num=$((last_num + 1))
     
-    local task_desc="$*"
-    local agent_tag="@codex"
+    task_desc="$*"
+    agent_tag="@codex"
     if echo "$task_desc" | grep -q '@claude'; then
       agent_tag="@claude"
       task_desc=$(echo "$task_desc" | sed 's/ *@claude//')
@@ -550,7 +550,7 @@ EOF
     
   run|"")
     # Check for in-progress task
-    local in_progress=$(get_in_progress)
+    in_progress=$(get_in_progress)
     if [ -n "$in_progress" ]; then
       parse_task "$in_progress" ""
       echo -e "${YELLOW}Task already in progress:${NC} $TASK_TITLE"
@@ -559,7 +559,7 @@ EOF
     fi
     
     # Find next ready task
-    local next_task=$(find_next_task)
+    next_task=$(find_next_task)
     
     if [ -z "$next_task" ]; then
       echo -e "${GREEN}🎉 All tasks complete!${NC}"
@@ -568,7 +568,7 @@ EOF
     fi
     
     # Parse the task
-    local task_body=$(sed -n "/$(echo "$next_task" | sed 's/[[\.*^$()+?{|]/\\&/g')/,/^###\\|^##/p" "$TASKS_FILE" | tail -n +2 | sed '/^###\|^##/d')
+    task_body=$(sed -n "/$(echo "$next_task" | sed 's/[[\.*^$()+?{|]/\\&/g')/,/^###\\|^##/p" "$TASKS_FILE" | tail -n +2 | sed '/^###\|^##/d')
     parse_task "$next_task" "$task_body"
     
     echo -e "${BOLD}Next task:${NC} $TASK_TITLE"
@@ -581,7 +581,7 @@ EOF
     move_to_in_progress "$next_task"
     
     # Build prompt and run
-    local prompt=$(build_prompt)
+    prompt=$(build_prompt)
     run_agent "$prompt"
     
     echo ""
@@ -590,7 +590,7 @@ EOF
     ;;
     
   skip)
-    local in_progress=$(get_in_progress)
+    in_progress=$(get_in_progress)
     if [ -z "$in_progress" ]; then
       echo -e "${YELLOW}No task in progress to skip${NC}"
       exit 1
@@ -601,8 +601,8 @@ EOF
     echo "Task moved back to Ready. Run 'next' to pick up next task."
     
     # For now, just clear In Progress (task is lost - TODO: move to blocked)
-    local temp_file=$(mktemp)
-    local skip_until_next=false
+    temp_file=$(mktemp)
+    skip_until_next=false
     
     while IFS= read -r line; do
       if echo "$line" | grep -qE '^## In Progress'; then
