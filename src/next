@@ -738,6 +738,53 @@ cmd_reset() {
   show_status
 }
 
+cmd_commit() {
+  local custom_msg="$1"
+  
+  # Check for changes
+  git add -A
+  if git diff --cached --quiet 2>/dev/null; then
+    echo -e "${YELLOW}Nothing to commit (working tree clean)${NC}"
+    return 0
+  fi
+  
+  # Determine commit message
+  local commit_msg=""
+  
+  if [ -n "$custom_msg" ]; then
+    # User provided a message
+    commit_msg="$custom_msg"
+  else
+    # Try to get from current task
+    init_state
+    local in_progress=$(get_in_progress_id)
+    if [ -n "$in_progress" ]; then
+      parse_task "$in_progress"
+      if [ -n "$TASK_COMMIT" ]; then
+        commit_msg="$TASK_COMMIT"
+        echo -e "${CYAN}Using task commit message: $commit_msg${NC}"
+      fi
+    fi
+  fi
+  
+  # Fallback to generic message
+  if [ -z "$commit_msg" ]; then
+    commit_msg="wip: checkpoint"
+    echo -e "${DIM}Using default message: $commit_msg${NC}"
+  fi
+  
+  # Commit
+  if git commit -m "$commit_msg"; then
+    local hash=$(git rev-parse --short HEAD 2>/dev/null || echo "")
+    echo -e "${GREEN}✅ Committed ($hash)${NC}"
+    echo ""
+    git log --oneline -1
+  else
+    echo -e "${RED}Commit failed${NC}"
+    return 1
+  fi
+}
+
 cmd_help() {
   echo "next-task v2: Task queue runner for AI coding agents"
   echo ""
@@ -747,12 +794,18 @@ cmd_help() {
   echo "  (default)  Run next ready task"
   echo "  status     Show task status"
   echo "  done       Mark current task complete (manual mode)"
+  echo "  commit     Commit changes (uses task message or custom)"
   echo "  skip       Skip current task"
   echo "  list       Show TASKS.md"
   echo "  log        Show LOG.md"
   echo "  reset      Clear in-progress state"
   echo "  init       Initialize project"
   echo "  help       Show this help"
+  echo ""
+  echo "Examples:"
+  echo "  next commit              # Uses TASK_COMMIT from current task"
+  echo "  next commit 'my message' # Uses custom message"
+  echo "  next c 'wip: feature'    # Short form"
   echo ""
   echo "State is stored in .agent/state.json"
   echo "Completion log is in LOG.md"
@@ -772,6 +825,7 @@ case "${1:-run}" in
   list|l)   cmd_list ;;
   log)      cmd_log ;;
   reset)    cmd_reset ;;
+  commit|c) cmd_commit "$2" ;;
   run|"")   cmd_run ;;
   help|--help|-h) cmd_help ;;
   *)
