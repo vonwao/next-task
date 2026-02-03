@@ -215,7 +215,8 @@ run_agent() {
   local prompt="$1"
   
   if [ "$TASK_AGENT" = "codex" ]; then
-    CMD="codex"
+    # Use 'codex exec' for non-interactive mode
+    CMD="codex exec"
     $YOLO && CMD="$CMD --full-auto"
     
     # Codex: write combined prompt with context
@@ -226,7 +227,7 @@ run_agent() {
     fi
     echo "$prompt" >> "$TEMP_PROMPT"
     
-    echo -e "${MAGENTA}▶ Running Codex${NC}"
+    echo -e "${MAGENTA}▶ Running Codex (non-interactive)${NC}"
     echo ""
     $CMD "$(cat "$TEMP_PROMPT")"
     rm -f "$TEMP_PROMPT"
@@ -586,7 +587,22 @@ EOF
     
     echo ""
     echo -e "${GREEN}Agent finished.${NC}"
-    echo "Review the changes, then run 'next done' to complete."
+    
+    # Auto-commit if commit message specified
+    if [ -n "$TASK_COMMIT" ]; then
+      echo ""
+      echo -e "${BLUE}Auto-committing:${NC} $TASK_COMMIT"
+      git add -A
+      if git commit -m "$TASK_COMMIT"; then
+        echo -e "${GREEN}✅ Committed${NC}"
+      else
+        echo -e "${YELLOW}No changes to commit (or commit failed)${NC}"
+      fi
+    fi
+    
+    echo ""
+    echo "Run 'next done' to mark complete and move to next task."
+    echo "Or 'next skip' to skip this task."
     ;;
     
   skip)
