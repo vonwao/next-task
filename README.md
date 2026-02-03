@@ -1,156 +1,144 @@
 # next-task
 
-**A task queue system for running AI coding agents (Claude Code / Codex) on project work.**
+> **Turn messy AI agent sessions into clean, reviewable commits — automatically.**
 
-> **v2.0** — Major rewrite with reliable state management. See [CHANGELOG.md](docs/CHANGELOG.md).
+Define tasks in markdown. Assign agents. Run the queue. Get clean git history.
 
-Run `next` in any project to pick up the next task and launch the right agent automatically.
+```bash
+next loop   # Runs all tasks, one clean commit each
+```
 
-## Why This Exists
+[![Docs](https://img.shields.io/badge/docs-online-blue)](https://vonwao.github.io/next-task/)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-When working with AI coding agents, you want to:
-- Define work as discrete tasks with clear outputs
-- Pick the right agent for each task (Claude vs Codex)
-- Track progress, dependencies, and milestones
-- Review artifacts at natural stopping points
-- Keep a single line of git history
+---
 
-This tool makes that workflow seamless.
+## The Problem
+
+AI coding agents (Claude Code, Codex) are powerful but chaotic:
+- They wander off-topic
+- Progress is hard to track  
+- Git history becomes a mess
+- You lose time re-explaining context
+
+## The Solution
+
+**next-task** gives you:
+
+```markdown
+# TASKS.md
+
+### T1: Set up project @codex
+**Commit:** `chore: initialize project`
+
+### T2: Add user authentication @claude  
+**Depends:** T1
+**Commit:** `feat: add auth`
+
+### T3: Write tests @codex
+**Depends:** T2
+**Commit:** `test: add auth tests`
+```
+
+Then:
+
+```bash
+next loop
+```
+
+Each task → right agent → clean commit → next task. Walk away and come back to a working project with reviewable history.
+
+---
 
 ## Quick Start
 
 ```bash
 # Install
-cd ~/dev/next-task && ./install.sh
+git clone https://github.com/vonwao/next-task.git ~/.next-task
+export PATH="$HOME/.next-task/src:$PATH"
 
-# Initialize a project
-cd ~/dev/your-project
-next init
-
-# Edit TASKS.md with your tasks, then:
-next           # Run next available task
-next done      # Mark complete, commit, unblock dependents
-next status    # See what's ready, blocked, in-progress
+# Try the demo
+git clone https://github.com/vonwao/next-task-demo.git
+cd next-task-demo
+next loop
 ```
-
-## Core Concepts
-
-### Tasks Have Agents
-
-Each task specifies which agent should run it:
-
-```markdown
-### T1: Set up project scaffolding @codex
-### T2: Design sync architecture @claude
-```
-
-**When to use which:** See [docs/AGENT-SELECTION.md](docs/AGENT-SELECTION.md)
-
-### Tasks Have Dependencies
-
-```markdown
-### T3: Implement file watcher @codex
-**Depends:** T1
-
-### T4: Build CLI commands @claude
-**Depends:** T2, T3
-```
-
-`next` automatically picks only tasks whose dependencies are complete.
-
-### Tasks Produce Artifacts
-
-```markdown
-### T3: Implement file watcher @codex
-**Artifacts:** src/watcher/FileWatcher.ts, src/watcher/FileWatcher.test.ts
-**Commit:** `feat: add file watcher`
-```
-
-When you run `next done`, it:
-1. Optionally verifies artifacts exist
-2. Commits with the specified message
-3. Marks the task done
-4. Unblocks dependent tasks
-
-### Milestones Are Review Points
-
-```markdown
-## 🏁 Milestone 1: Local Agent MVP
-(tasks here)
-
----
-🎯 **Milestone 1 complete:** Can watch files and run jj commands
-
-## 🏁 Milestone 2: Cloud Sync
-(tasks here)
-```
-
-At milestones, stop and review before continuing.
-
-### Claude Can Parallelize
-
-```markdown
-### T5: Build CLI commands @claude [use-subagents]
-**Parallel sub-tasks:**
-  - `weldr init` command
-  - `weldr status` command  
-  - `weldr sync` command
-```
-
-The `[use-subagents]` tag tells Claude to spawn sub-agents for parallel work.
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `next` | Run next ready task (auto-selects agent) |
-| `next status` | Show task status (ready/blocked/in-progress) |
-| `next done` | Mark current task complete, commit, unblock dependents |
-| `next add <desc> @agent` | Add a task to Ready queue |
-| `next skip` | Skip current task (move to Blocked with reason) |
-| `next list` | Show full TASKS.md |
-| `next init` | Initialize project with TASKS.md + AGENT.md |
+| `next` | Run next ready task |
+| `next loop` | 🔄 Run all tasks continuously |
+| `next status` | Show ready / blocked / done |
+| `next preview` | Dry run — show what would happen |
+| `next done` | Manually mark task complete |
+| `next skip` | Skip current task |
 
-## Project Structure
+## Task Format
 
-After `next init`:
+```markdown
+### T1: Task title @agent
+**Depends:** T0           # Won't run until T0 is done
+**Artifacts:** src/foo.ts # Expected output (informational)
+**Commit:** `feat: foo`   # Commit message
 
-```
-your-project/
-├── AGENT.md           # Context for AI agents (universal)
-├── TASKS.md           # Task specs (tasks marked ✅ in-place when done)
-├── LOG.md             # Completion history (append-only)
-└── .agent/
-    ├── config.yml     # Default agent, validation command
-    └── state.json     # Done/in-progress state (source of truth)
+Task description. The agent sees this as its prompt.
 ```
 
-### State Management
+**Agents:**
+- `@codex` — Fast, good for well-defined tasks
+- `@claude` — Better reasoning, good for complex tasks
 
-- **`.agent/state.json`** is the source of truth for task state
-- **`TASKS.md`** has tasks marked with ✅ for visibility (but state.json is authoritative)
-- **`LOG.md`** is append-only history of completions
+## How It Works
 
-## Documentation
+```
+TASKS.md          →  next picks ready task
+                  →  launches assigned agent
+                  →  agent does work
+                  →  auto-commits with clean message
+.agent/state.json →  tracks what's done
+LOG.md            →  append-only history
+```
 
-- [Task Format Specification](docs/FORMAT.md)
-- [Agent Selection Guide](docs/AGENT-SELECTION.md)
-- [Design Decisions](docs/DESIGN-DECISIONS.md)
-- [Examples](examples/)
+State lives in files. Restarts are safe. Git tracks everything.
 
-## Installation
+## Loop Mode (Ralph-style)
+
+Inspired by the [Ralph Wiggum pattern](https://ghuntley.com/ralph/):
 
 ```bash
-cd ~/dev/next-task
-./install.sh
+next loop        # Run until queue empty
+next loop 5      # Max 5 iterations
+next loop --push # Push after each commit
 ```
 
-This installs `next` to `~/.local/bin/`. Make sure that's in your PATH.
+Kick it off and walk away. Come back to clean commits.
 
-## Integration
+---
 
-Works with:
-- **Claude Code** (`claude` CLI)
-- **Codex CLI** (`codex`)
-- **CTO task-log** (auto-logs completed tasks)
-- **Git** (auto-commits with specified messages)
+## Docs
+
+📖 **[Full Documentation](https://vonwao.github.io/next-task/)**
+
+- [Getting Started](https://vonwao.github.io/next-task/#/getting-started/introduction)
+- [Task File Format](https://vonwao.github.io/next-task/#/concepts/task-files)
+- [Loop Mode](https://vonwao.github.io/next-task/#/concepts/loop-mode)
+- [Command Reference](https://vonwao.github.io/next-task/#/commands/run)
+
+---
+
+## Philosophy
+
+**"Trello, but executable."**
+
+- More structured than pure agent loops
+- Less overhead than Jira
+- Git as the source of truth
+
+Perfect when you want AI to do the work but stay in control of *what* gets built and *in what order*.
+
+---
+
+## License
+
+MIT

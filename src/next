@@ -920,6 +920,40 @@ cmd_loop() {
   show_status
 }
 
+cmd_preview() {
+  init_state
+  
+  # Check for in-progress task
+  local in_progress=$(get_in_progress_id)
+  if [ -n "$in_progress" ]; then
+    parse_task "$in_progress"
+    echo -e "${YELLOW}Would resume in-progress task:${NC}"
+    echo ""
+  else
+    local next_task=$(find_next_task)
+    if [ -z "$next_task" ]; then
+      echo -e "${GREEN}Nothing to do — all tasks complete (or blocked)${NC}"
+      return 0
+    fi
+    parse_task "$next_task"
+    echo -e "${CYAN}Would run next ready task:${NC}"
+    echo ""
+  fi
+  
+  echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo -e "${BOLD}Task:${NC}      $TASK_ID: $TASK_TITLE"
+  echo -e "${BOLD}Agent:${NC}     $TASK_AGENT"
+  [ -n "$TASK_DEPENDS" ] && echo -e "${BOLD}Depends:${NC}   $TASK_DEPENDS"
+  [ -n "$TASK_ARTIFACTS" ] && echo -e "${BOLD}Artifacts:${NC} $TASK_ARTIFACTS"
+  [ -n "$TASK_COMMIT" ] && echo -e "${BOLD}Commit:${NC}    $TASK_COMMIT"
+  echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo ""
+  echo -e "${DIM}Description:${NC}"
+  echo "$TASK_DESC" | head -20
+  echo ""
+  echo -e "${DIM}Run 'next' or 'next run' to execute this task.${NC}"
+}
+
 cmd_help() {
   echo "next-task v2: Task queue runner for AI coding agents"
   echo ""
@@ -928,6 +962,7 @@ cmd_help() {
   echo "Commands:"
   echo "  (default)  Run next ready task (single task, then stop)"
   echo "  loop       🔄 Ralph mode: run tasks continuously until done"
+  echo "  preview    👀 Dry run: show what would happen"
   echo "  status     Show task status"
   echo "  done       Mark current task complete (manual mode)"
   echo "  commit     Commit changes (uses task message or custom)"
@@ -965,6 +1000,7 @@ case "${1:-run}" in
   reset)    cmd_reset ;;
   commit|c) cmd_commit "$2" ;;
   loop)     cmd_loop "$2" "$3" ;;
+  preview|p) cmd_preview ;;
   run|"")   cmd_run ;;
   help|--help|-h) cmd_help ;;
   *)
