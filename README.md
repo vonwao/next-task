@@ -2,6 +2,8 @@
 
 **A task queue system for running AI coding agents (Claude Code / Codex) on project work.**
 
+> **v2.0** — Major rewrite with reliable state management. See [CHANGELOG.md](docs/CHANGELOG.md).
+
 Run `next` in any project to pick up the next task and launch the right agent automatically.
 
 ## Why This Exists
@@ -116,10 +118,18 @@ After `next init`:
 ```
 your-project/
 ├── AGENT.md           # Context for AI agents (universal)
-├── TASKS.md           # Task queue with dependencies
+├── TASKS.md           # Task specs (tasks marked ✅ in-place when done)
+├── LOG.md             # Completion history (append-only)
 └── .agent/
-    └── config.yml     # Default agent, validation command
+    ├── config.yml     # Default agent, validation command
+    └── state.json     # Done/in-progress state (source of truth)
 ```
+
+### State Management
+
+- **`.agent/state.json`** is the source of truth for task state
+- **`TASKS.md`** has tasks marked with ✅ for visibility (but state.json is authoritative)
+- **`LOG.md`** is append-only history of completions
 
 ## Documentation
 

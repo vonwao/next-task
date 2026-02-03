@@ -1,9 +1,10 @@
 #!/bin/bash
-# next - Task queue runner for AI coding agents
-# https://github.com/vonwao/next-task
-
-# Note: Not using set -e because grep/sed return non-zero on no-match,
-# which would cause spurious exits. We handle errors explicitly.
+# next v2 - Task queue runner for AI coding agents
+# Major improvements:
+# - Separate state file (.agent/state.json) for reliability
+# - LOG.md for completion history (append-only)
+# - TASKS.md stays clean (mark in-place, don't move tasks)
+# - Cleaner prompts (only current task, not all future tasks)
 
 # Colors
 RED='\033[0;31m'
@@ -13,6 +14,7 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 MAGENTA='\033[0;35m'
 BOLD='\033[1m'
+DIM='\033[2m'
 NC='\033[0m'
 
 PROJECT_DIR="$(pwd)"
@@ -20,169 +22,294 @@ PROJECT_NAME="$(basename "$PROJECT_DIR")"
 TASKS_FILE="$PROJECT_DIR/TASKS.md"
 AGENT_FILE="$PROJECT_DIR/AGENT.md"
 CONFIG_FILE="$PROJECT_DIR/.agent/config.yml"
+STATE_FILE="$PROJECT_DIR/.agent/state.json"
+LOG_FILE="$PROJECT_DIR/LOG.md"
 
 # Default config
 DEFAULT_AGENT="codex"
 YOLO=true
 VALIDATE_CMD=""
 
-# Load config if exists
+#######################################
+# State Management (JSON)
+#######################################
+
+# Initialize state file if it doesn't exist
+init_state() {
+  if [ ! -f "$STATE_FILE" ]; then
+    mkdir -p "$(dirname "$STATE_FILE")"
+    echo '{"done":[],"inProgress":null,"log":[]}' > "$STATE_FILE"
+  fi
+}
+
+# Read state using python (more reliable than jq for portability)
+read_state() {
+  python3 -c "
+import json
+with open('$STATE_FILE') as f:
+    state = json.load(f)
+print(json.dumps(state))
+" 2>/dev/null || echo '{"done":[],"inProgress":null,"log":[]}'
+}
+
+# Get list of done task IDs
+get_done_ids() {
+  python3 -c "
+import json
+with open('$STATE_FILE') as f:
+    state = json.load(f)
+for tid in state.get('done', []):
+    print(tid)
+" 2>/dev/null
+}
+
+# Get in-progress task ID
+get_in_progress_id() {
+  python3 -c "
+import json
+with open('$STATE_FILE') as f:
+    state = json.load(f)
+ip = state.get('inProgress')
+if ip:
+    print(ip)
+" 2>/dev/null
+}
+
+# Check if task is done
+is_task_done() {
+  local task_id="$1"
+  python3 -c "
+import json
+with open('$STATE_FILE') as f:
+    state = json.load(f)
+exit(0 if '$task_id' in state.get('done', []) else 1)
+" 2>/dev/null
+}
+
+# Mark task as in progress
+set_in_progress() {
+  local task_id="$1"
+  python3 -c "
+import json
+with open('$STATE_FILE') as f:
+    state = json.load(f)
+state['inProgress'] = '$task_id'
+with open('$STATE_FILE', 'w') as f:
+    json.dump(state, f, indent=2)
+" 2>/dev/null
+}
+
+# Mark task as done
+mark_task_done() {
+  local task_id="$1"
+  local commit_hash="$2"
+  local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  
+  python3 -c "
+import json
+with open('$STATE_FILE') as f:
+    state = json.load(f)
+
+# Add to done list if not already there
+if '$task_id' not in state.get('done', []):
+    state.setdefault('done', []).append('$task_id')
+
+# Clear in-progress
+state['inProgress'] = None
+
+# Add to log
+state.setdefault('log', []).append({
+    'taskId': '$task_id',
+    'timestamp': '$timestamp',
+    'commit': '$commit_hash' or None
+})
+
+with open('$STATE_FILE', 'w') as f:
+    json.dump(state, f, indent=2)
+" 2>/dev/null
+}
+
+# Clear in-progress (for skip)
+clear_in_progress() {
+  python3 -c "
+import json
+with open('$STATE_FILE') as f:
+    state = json.load(f)
+state['inProgress'] = None
+with open('$STATE_FILE', 'w') as f:
+    json.dump(state, f, indent=2)
+" 2>/dev/null
+}
+
+#######################################
+# LOG.md Management
+#######################################
+
+# Append to LOG.md
+append_log() {
+  local task_id="$1"
+  local task_title="$2"
+  local commit_hash="$3"
+  local timestamp=$(date '+%Y-%m-%d %H:%M')
+  local today=$(date '+%Y-%m-%d')
+  
+  # Create LOG.md if doesn't exist
+  if [ ! -f "$LOG_FILE" ]; then
+    echo "# Task Log" > "$LOG_FILE"
+    echo "" >> "$LOG_FILE"
+  fi
+  
+  # Check if today's header exists
+  if ! grep -q "^## $today" "$LOG_FILE"; then
+    echo "" >> "$LOG_FILE"
+    echo "## $today" >> "$LOG_FILE"
+  fi
+  
+  # Append entry
+  if [ -n "$commit_hash" ]; then
+    echo "- **$task_id**: $task_title ✅ \`$commit_hash\` @ $timestamp" >> "$LOG_FILE"
+  else
+    echo "- **$task_id**: $task_title ✅ @ $timestamp" >> "$LOG_FILE"
+  fi
+}
+
+#######################################
+# TASKS.md Parsing
+#######################################
+
+# Load config
 load_config() {
   if [ -f "$CONFIG_FILE" ]; then
     DEFAULT_AGENT=$(grep -E '^agent:' "$CONFIG_FILE" 2>/dev/null | awk '{print $2}' | cut -d'#' -f1 | tr -d ' ' || echo "codex")
     YOLO_CFG=$(grep -E '^yolo:' "$CONFIG_FILE" 2>/dev/null | awk '{print $2}' | cut -d'#' -f1 | tr -d ' ' || echo "true")
-    VALIDATE_CMD=$(grep -E '^validate:' "$CONFIG_FILE" 2>/dev/null | sed 's/^validate:[ ]*//' | cut -d'#' -f1 | sed 's/[ ]*$//' || echo "")
+    VALIDATE_CMD=$(grep -E '^validate:' "$CONFIG_FILE" 2>/dev/null | sed 's/^validate:[ ]*//' | cut -d'#' -f1 | sed 's/[ ]*$//' || true)
     [ "$YOLO_CFG" = "false" ] && YOLO=false
-    [ "$DEFAULT_AGENT" = "" ] && DEFAULT_AGENT="codex"
+    [ -z "$DEFAULT_AGENT" ] && DEFAULT_AGENT="codex"
   fi
 }
 
-# Get all done task IDs
-get_done_tasks() {
-  grep -E '^### T[0-9a-zA-Z_-]+:.*✅' "$TASKS_FILE" 2>/dev/null | \
-    sed -E 's/^### (T[0-9a-zA-Z_-]+):.*/\1/' || true
+# Parse a task from TASKS.md
+# Sets: TASK_ID, TASK_TITLE, TASK_AGENT, TASK_DEPENDS, TASK_ARTIFACTS, TASK_COMMIT, TASK_DESC, TASK_FLAGS
+parse_task() {
+  local task_id="$1"
+  
+  # Find the task header line
+  local header=$(grep -E "^### $task_id:" "$TASKS_FILE" | head -1)
+  if [ -z "$header" ]; then
+    return 1
+  fi
+  
+  TASK_ID="$task_id"
+  
+  # Extract agent
+  if echo "$header" | grep -q '@claude'; then
+    TASK_AGENT="claude"
+  elif echo "$header" | grep -q '@codex'; then
+    TASK_AGENT="codex"
+  else
+    TASK_AGENT="$DEFAULT_AGENT"
+  fi
+  
+  # Extract flags
+  TASK_FLAGS=""
+  echo "$header" | grep -q '\[use-subagents\]' && TASK_FLAGS="$TASK_FLAGS use-subagents"
+  echo "$header" | grep -q '\[research\]' && TASK_FLAGS="$TASK_FLAGS research"
+  echo "$header" | grep -q '\[manual\]' && TASK_FLAGS="$TASK_FLAGS manual"
+  
+  # Extract title (between ID: and @agent)
+  TASK_TITLE=$(echo "$header" | sed -E 's/^### T[0-9a-zA-Z_-]+: //' | sed -E 's/ @(claude|codex).*//' | sed -E 's/ \[.*//')
+  
+  # Extract task body (everything between this header and next ### or ##)
+  local in_task=false
+  local body=""
+  while IFS= read -r line; do
+    if echo "$line" | grep -qE "^### $task_id:"; then
+      in_task=true
+      continue
+    fi
+    if [ "$in_task" = true ]; then
+      if echo "$line" | grep -qE '^### |^## '; then
+        break
+      fi
+      body="${body}${line}"$'\n'
+    fi
+  done < "$TASKS_FILE"
+  
+  # Extract metadata from body (only first match)
+  TASK_DEPENDS=$(echo "$body" | grep -E '^\*\*Depends:\*\*' | head -1 | sed 's/\*\*Depends:\*\* //' || true)
+  TASK_ARTIFACTS=$(echo "$body" | grep -E '^\*\*Artifacts:\*\*' | head -1 | sed 's/\*\*Artifacts:\*\* //' || true)
+  TASK_COMMIT=$(echo "$body" | grep -E '^\*\*Commit:\*\*' | head -1 | sed 's/\*\*Commit:\*\* //' | tr -d '`' || true)
+  
+  # Description is everything except metadata
+  TASK_DESC=$(echo "$body" | grep -v -E '^\*\*(Depends|Artifacts|Commit|Status|Completed):\*\*' | sed '/^[[:space:]]*$/d')
 }
 
-# Check if all dependencies are met
+# Get all task IDs from TASKS.md
+get_all_task_ids() {
+  grep -oE '^### T[0-9a-zA-Z_-]+:' "$TASKS_FILE" 2>/dev/null | sed 's/^### //' | sed 's/:$//'
+}
+
+# Check if dependencies are met
 deps_met() {
   local deps="$1"
-  local done_tasks=$(get_done_tasks)
   
   if [ -z "$deps" ] || [ "$deps" = "(none)" ]; then
     return 0
   fi
   
+  local done_ids=$(get_done_ids)
+  
   # Split deps by comma and check each
   IFS=',' read -ra DEP_ARRAY <<< "$deps"
   for dep in "${DEP_ARRAY[@]}"; do
     dep=$(echo "$dep" | tr -d ' ')
-    if ! echo "$done_tasks" | grep -q "^${dep}$"; then
+    if ! echo "$done_ids" | grep -q "^${dep}$"; then
       return 1
     fi
   done
   return 0
 }
 
-# Parse a task block and extract metadata
-parse_task() {
-  local task_header="$1"
-  local task_body="$2"
-  
-  # Extract task ID: ### T1: or ### task-name:
-  TASK_ID=$(echo "$task_header" | sed -E 's/^### (T[0-9a-zA-Z_-]+|[a-z][a-z0-9_-]+):.*/\1/')
-  
-  # Extract agent from @claude or @codex tag
-  if echo "$task_header" | grep -q '@claude'; then
-    TASK_AGENT="claude"
-  elif echo "$task_header" | grep -q '@codex'; then
-    TASK_AGENT="codex"
-  else
-    TASK_AGENT="$DEFAULT_AGENT"
-  fi
-  
-  # Check for flags (use if/then to avoid set -e issues)
-  if echo "$task_header" | grep -q '\[use-subagents\]'; then
-    TASK_USE_SUBAGENTS="true"
-  else
-    TASK_USE_SUBAGENTS="false"
-  fi
-  if echo "$task_header" | grep -q '\[research\]'; then
-    TASK_RESEARCH="true"
-  else
-    TASK_RESEARCH="false"
-  fi
-  if echo "$task_header" | grep -q '\[manual\]'; then
-    TASK_MANUAL="true"
-  else
-    TASK_MANUAL="false"
-  fi
-  
-  # Extract title (everything between ID: and @agent or flags)
-  TASK_TITLE=$(echo "$task_header" | sed -E 's/^### T[0-9a-zA-Z_-]+: //' | sed -E 's/ @(claude|codex).*//' | sed -E 's/ \[.*//')
-  
-  # Extract metadata from body (use head -1 to get only first match, || true for missing)
-  TASK_DEPENDS=$(echo "$task_body" | grep -E '^\*\*Depends:\*\*' | head -1 | sed 's/\*\*Depends:\*\* //' || true)
-  TASK_ARTIFACTS=$(echo "$task_body" | grep -E '^\*\*Artifacts:\*\*' | head -1 | sed 's/\*\*Artifacts:\*\* //' || true)
-  TASK_COMMIT=$(echo "$task_body" | grep -E '^\*\*Commit:\*\*' | head -1 | sed 's/\*\*Commit:\*\* //' | tr -d '`' || true)
-  
-  # Extract description (everything except metadata lines)
-  TASK_DESC=$(echo "$task_body" | grep -v -E '^\*\*(Depends|Artifacts|Commit|Started|Parallel):\*\*' | sed '/^$/d')
-}
-
 # Find next ready task
 find_next_task() {
-  local in_milestone=""
-  local found_task=""
-  local task_header=""
-  local task_body=""
-  local collecting_body=false
+  local done_ids=$(get_done_ids)
+  local in_progress=$(get_in_progress_id)
   
-  while IFS= read -r line; do
-    # Track milestones
-    if echo "$line" | grep -qE '^## 🏁'; then
-      in_milestone=$(echo "$line" | sed 's/## 🏁 Milestone [0-9]*: //')
+  for task_id in $(get_all_task_ids); do
+    # Skip if done
+    if echo "$done_ids" | grep -q "^${task_id}$"; then
+      continue
     fi
     
-    # Skip Done and In Progress sections
-    if echo "$line" | grep -qE '^## (Done|In Progress)'; then
-      break
+    # Skip if in progress
+    if [ "$task_id" = "$in_progress" ]; then
+      continue
     fi
     
-    # Found a task header
-    if echo "$line" | grep -qE '^### T[0-9a-zA-Z_-]+:'; then
-      # If we were collecting a previous task, check if it's ready
-      if [ -n "$task_header" ]; then
-        parse_task "$task_header" "$task_body"
-        if [ "$TASK_MANUAL" = "false" ] && deps_met "$TASK_DEPENDS"; then
-          found_task="$task_header"
-          break
-        fi
-      fi
-      
-      task_header="$line"
-      task_body=""
-      collecting_body=true
-    elif [ "$collecting_body" = true ]; then
-      # Stop at next task or section
-      if echo "$line" | grep -qE '^##'; then
-        # Check last collected task
-        if [ -n "$task_header" ]; then
-          parse_task "$task_header" "$task_body"
-          if [ "$TASK_MANUAL" = "false" ] && deps_met "$TASK_DEPENDS"; then
-            found_task="$task_header"
-            break
-          fi
-        fi
-        task_header=""
-        collecting_body=false
-      else
-        task_body="$task_body"$'\n'"$line"
-      fi
+    # Parse task to check deps
+    parse_task "$task_id"
+    
+    # Skip manual tasks
+    if echo "$TASK_FLAGS" | grep -q "manual"; then
+      continue
     fi
-  done < "$TASKS_FILE"
-  
-  # Check last task if we haven't found one yet
-  if [ -z "$found_task" ] && [ -n "$task_header" ]; then
-    parse_task "$task_header" "$task_body"
-    if [ "$TASK_MANUAL" = "false" ] && deps_met "$TASK_DEPENDS"; then
-      found_task="$task_header"
+    
+    # Check dependencies
+    if deps_met "$TASK_DEPENDS"; then
+      echo "$task_id"
+      return 0
     fi
-  fi
+  done
   
-  echo "$found_task"
+  return 1
 }
 
-# Get task currently in progress
-get_in_progress() {
-  sed -n '/^## In Progress/,/^## /p' "$TASKS_FILE" 2>/dev/null | \
-    grep -E '^### T[0-9a-zA-Z_-]+:' | head -1 || true
-}
+#######################################
+# Prompt Building
+#######################################
 
-# Build prompt for agent
 build_prompt() {
-  local prompt=""
-  
-  prompt="# Task: $TASK_TITLE
+  local prompt="# Task: $TASK_TITLE
 
 $TASK_DESC"
   
@@ -197,10 +324,10 @@ $TASK_ARTIFACTS"
     prompt="$prompt
 
 ## When Complete
-Commit your changes with: \`$TASK_COMMIT\`"
+Commit your changes with message: \`$TASK_COMMIT\`"
   fi
   
-  if [ "$TASK_USE_SUBAGENTS" = "true" ]; then
+  if echo "$TASK_FLAGS" | grep -q "use-subagents"; then
     prompt="$prompt
 
 ## Parallelization
@@ -210,16 +337,18 @@ This task can be parallelized. Use sub-agents for independent pieces of work."
   echo "$prompt"
 }
 
-# Run the agent
+#######################################
+# Agent Running
+#######################################
+
 run_agent() {
   local prompt="$1"
   
   if [ "$TASK_AGENT" = "codex" ]; then
-    # Use 'codex exec' for non-interactive mode
     CMD="codex exec"
     $YOLO && CMD="$CMD --full-auto"
     
-    # Codex: write combined prompt with context
+    # Build prompt with AGENT.md context
     TEMP_PROMPT=$(mktemp)
     if [ -f "$AGENT_FILE" ]; then
       cat "$AGENT_FILE" > "$TEMP_PROMPT"
@@ -230,13 +359,15 @@ run_agent() {
     echo -e "${MAGENTA}▶ Running Codex (non-interactive)${NC}"
     echo ""
     $CMD "$(cat "$TEMP_PROMPT")"
+    local exit_code=$?
     rm -f "$TEMP_PROMPT"
+    return $exit_code
     
   else
     CMD="claude"
     $YOLO && CMD="$CMD --dangerously-skip-permissions"
     
-    # Claude: ensure AGENT.md is symlinked to CLAUDE.md
+    # Symlink AGENT.md to CLAUDE.md if needed
     if [ -f "$AGENT_FILE" ] && [ ! -f "$PROJECT_DIR/CLAUDE.md" ]; then
       ln -sf AGENT.md "$PROJECT_DIR/CLAUDE.md"
       CREATED_SYMLINK=true
@@ -245,143 +376,52 @@ run_agent() {
     echo -e "${MAGENTA}▶ Running Claude Code${NC}"
     echo ""
     $CMD "$prompt"
+    local exit_code=$?
     
     [ "$CREATED_SYMLINK" = "true" ] && rm -f "$PROJECT_DIR/CLAUDE.md"
+    return $exit_code
   fi
 }
 
-# Move task to In Progress
-move_to_in_progress() {
-  local task_header="$1"
-  local timestamp=$(date '+%Y-%m-%d %H:%M')
-  
-  # Remove task from current location (including following lines until next ### or ##)
-  # This is tricky in bash, using a temp file approach
-  local temp_file=$(mktemp)
-  local skip_until_next=false
-  local task_pattern=$(echo "$task_header" | sed 's/[[\.*^$()+?{|]/\\&/g')
-  
-  while IFS= read -r line; do
-    if echo "$line" | grep -qF "$task_header"; then
-      skip_until_next=true
-      continue
-    fi
-    if [ "$skip_until_next" = true ]; then
-      if echo "$line" | grep -qE '^###|^##'; then
-        skip_until_next=false
-        echo "$line" >> "$temp_file"
-      fi
-      continue
-    fi
-    echo "$line" >> "$temp_file"
-  done < "$TASKS_FILE"
-  
-  mv "$temp_file" "$TASKS_FILE"
-  
-  # Add to In Progress section with timestamp
-  local in_progress_content="$task_header
-**Started:** $timestamp
-"
-  
-  # Insert after ## In Progress
-  sed -i '' "/^## In Progress/a\\
-\\
-$task_header\\
-**Started:** $timestamp
-" "$TASKS_FILE"
-}
+#######################################
+# TASKS.md In-Place Marking
+#######################################
 
-# Mark current task as done
-mark_done() {
-  local in_progress=$(get_in_progress)
-  
-  if [ -z "$in_progress" ]; then
-    echo -e "${YELLOW}No task in progress${NC}"
-    exit 1
-  fi
-  
-  # Parse to get metadata
-  local task_body=$(sed -n "/^## In Progress/,/^## /p" "$TASKS_FILE" | tail -n +2 | sed '/^## /d')
-  parse_task "$in_progress" "$task_body"
-  
+# Mark a task as done in TASKS.md (in-place, don't move)
+mark_done_in_tasks() {
+  local task_id="$1"
+  local commit_hash="$2"
   local timestamp=$(date '+%Y-%m-%d')
-  local commit_hash=""
   
-  # Run validation if configured
-  if [ -n "$VALIDATE_CMD" ]; then
-    echo -e "${BLUE}Running validation:${NC} $VALIDATE_CMD"
-    if ! eval "$VALIDATE_CMD"; then
-      echo -e "${RED}Validation failed. Fix issues before marking done.${NC}"
-      exit 1
-    fi
-    echo -e "${GREEN}Validation passed${NC}"
+  # Find the task header and add ✅ if not already there
+  if grep -qE "^### $task_id:.*✅" "$TASKS_FILE"; then
+    return 0  # Already marked
   fi
   
-  # Commit if specified
-  if [ -n "$TASK_COMMIT" ]; then
-    echo -e "${BLUE}Committing:${NC} $TASK_COMMIT"
-    git add -A
-    git commit -m "$TASK_COMMIT" || true
-    commit_hash=$(git rev-parse --short HEAD 2>/dev/null || echo "")
-  fi
+  # Add ✅ and completion info to the header line
+  local completion_info="✅"
+  [ -n "$commit_hash" ] && completion_info="✅ (done: $timestamp, $commit_hash)"
   
-  # Remove from In Progress
-  local temp_file=$(mktemp)
-  local skip_until_next=false
-  
-  while IFS= read -r line; do
-    if echo "$line" | grep -qE '^## In Progress'; then
-      echo "$line" >> "$temp_file"
-      skip_until_next=true
-      continue
-    fi
-    if [ "$skip_until_next" = true ]; then
-      if echo "$line" | grep -qE '^## '; then
-        skip_until_next=false
-        echo "$line" >> "$temp_file"
-      fi
-      continue
-    fi
-    echo "$line" >> "$temp_file"
-  done < "$TASKS_FILE"
-  
-  mv "$temp_file" "$TASKS_FILE"
-  
-  # Add to Done section
-  local done_entry="### $TASK_ID: $TASK_TITLE @$TASK_AGENT ✅"
-  [ -n "$commit_hash" ] && done_entry="$done_entry
-**Completed:** $timestamp | Commit: $commit_hash" || done_entry="$done_entry
-**Completed:** $timestamp"
-  
-  sed -i '' "/^## Done/a\\
-\\
-$done_entry
-" "$TASKS_FILE"
-  
-  echo -e "${GREEN}✅ Completed:${NC} $TASK_TITLE"
-  
-  # Log to CTO task-log if available
-  if [ -x "$HOME/clawd/scripts/task-log.sh" ]; then
-    "$HOME/clawd/scripts/task-log.sh" "$PROJECT_NAME" "$TASK_TITLE" done "agent-runner,$TASK_AGENT" "$commit_hash" 2>/dev/null && \
-      echo -e "${CYAN}📝 Logged to task-log${NC}"
-  fi
-  
-  # Show what's next
-  echo ""
-  show_status
+  # Use sed to modify the header line
+  sed -i '' "s/^### $task_id: \(.*\)$/### $task_id: \1 $completion_info/" "$TASKS_FILE"
 }
 
-# Show status
+#######################################
+# Display
+#######################################
+
 show_status() {
+  init_state
+  
   echo -e "${BOLD}Project:${NC} $PROJECT_NAME"
   echo -e "${BOLD}Default agent:${NC} $DEFAULT_AGENT"
   echo ""
   
   # In Progress
-  local in_progress=$(get_in_progress)
+  local in_progress=$(get_in_progress_id)
   if [ -n "$in_progress" ]; then
-    parse_task "$in_progress" ""
-    echo -e "${YELLOW}▶ In Progress:${NC} $TASK_TITLE ${CYAN}@$TASK_AGENT${NC}"
+    parse_task "$in_progress"
+    echo -e "${YELLOW}▶ In Progress:${NC} $TASK_ID: $TASK_TITLE ${CYAN}@$TASK_AGENT${NC}"
   else
     echo -e "${YELLOW}▶ In Progress:${NC} (none)"
   fi
@@ -390,60 +430,61 @@ show_status() {
   # Ready tasks
   echo -e "${GREEN}Ready:${NC}"
   local found_ready=false
-  local done_tasks=$(get_done_tasks)
+  local done_ids=$(get_done_ids)
   
-  # Use process substitution to avoid subshell (so found_ready persists)
-  while read -r line; do
-    # Skip if in Done section
-    if sed -n '/^## Done/,$ p' "$TASKS_FILE" | grep -qF "$line"; then
-      continue
-    fi
-    # Skip if in In Progress section  
-    if sed -n '/^## In Progress/,/^## / p' "$TASKS_FILE" | grep -qF "$line"; then
+  for task_id in $(get_all_task_ids); do
+    # Skip if done
+    if echo "$done_ids" | grep -q "^${task_id}$"; then
       continue
     fi
     
-    # Parse and check deps - extract body until next ### or ## line
-    task_body=""
-    in_task=false
-    while IFS= read -r bodyline; do
-      if [ "$bodyline" = "$line" ]; then
-        in_task=true
-        continue
-      fi
-      if [ "$in_task" = true ]; then
-        # Stop at next task or section header
-        if echo "$bodyline" | grep -qE '^### |^## '; then
-          break
-        fi
-        task_body="${task_body}${bodyline}"$'\n'
-      fi
-    done < "$TASKS_FILE"
-    parse_task "$line" "$task_body"
+    # Skip if in progress
+    if [ "$task_id" = "$in_progress" ]; then
+      continue
+    fi
+    
+    parse_task "$task_id"
+    
+    # Skip manual
+    if echo "$TASK_FLAGS" | grep -q "manual"; then
+      continue
+    fi
     
     if deps_met "$TASK_DEPENDS"; then
-      echo -e "  • $TASK_TITLE ${CYAN}@$TASK_AGENT${NC}"
+      echo -e "  • ${BOLD}$TASK_ID${NC}: $TASK_TITLE ${CYAN}@$TASK_AGENT${NC}"
       found_ready=true
     fi
-  done < <(grep -E '^### T[0-9a-zA-Z_-]+:' "$TASKS_FILE" 2>/dev/null)
+  done
   
   [ "$found_ready" = false ] && echo "  (none ready - check dependencies)"
   echo ""
   
   # Done count
-  local done_count=$(grep -cE '^### T[0-9a-zA-Z_-]+:.*✅' "$TASKS_FILE" 2>/dev/null || echo "0")
+  local done_count=$(get_done_ids | wc -l | tr -d ' ')
   echo -e "${BLUE}Done:${NC} $done_count tasks"
+  
+  # Show recent log entries
+  if [ -f "$LOG_FILE" ]; then
+    local recent=$(tail -5 "$LOG_FILE" 2>/dev/null | grep "^- " | tail -3)
+    if [ -n "$recent" ]; then
+      echo ""
+      echo -e "${DIM}Recent:${NC}"
+      echo "$recent" | while read -r line; do
+        echo -e "  ${DIM}$line${NC}"
+      done
+    fi
+  fi
 }
 
-# Main
-load_config
+#######################################
+# Commands
+#######################################
 
-case "${1:-run}" in
-  init)
-    mkdir -p "$PROJECT_DIR/.agent"
-    
-    if [ ! -f "$TASKS_FILE" ]; then
-      cat > "$TASKS_FILE" << 'EOF'
+cmd_init() {
+  mkdir -p "$PROJECT_DIR/.agent"
+  
+  if [ ! -f "$TASKS_FILE" ]; then
+    cat > "$TASKS_FILE" << 'EOF'
 # Tasks
 
 ## 🏁 Milestone 1: MVP
@@ -457,17 +498,12 @@ Describe what needs to be done here.
 
 ---
 🎯 **Milestone 1 complete:** Description of what's achieved
-
-## In Progress
-
-## Done
-
 EOF
-      echo -e "${GREEN}Created TASKS.md${NC}"
-    fi
-    
-    if [ ! -f "$AGENT_FILE" ]; then
-      cat > "$AGENT_FILE" << EOF
+    echo -e "${GREEN}Created TASKS.md${NC}"
+  fi
+  
+  if [ ! -f "$AGENT_FILE" ]; then
+    cat > "$AGENT_FILE" << EOF
 # $PROJECT_NAME
 
 Project description here.
@@ -487,231 +523,236 @@ Describe key directories and files.
 
 Describe coding conventions.
 EOF
-      echo -e "${GREEN}Created AGENT.md${NC}"
-    fi
-    
-    if [ ! -f "$CONFIG_FILE" ]; then
-      cat > "$CONFIG_FILE" << 'EOF'
+    echo -e "${GREEN}Created AGENT.md${NC}"
+  fi
+  
+  if [ ! -f "$CONFIG_FILE" ]; then
+    cat > "$CONFIG_FILE" << 'EOF'
 # Agent configuration
 agent: codex         # Default agent (claude or codex)
 yolo: true           # Skip confirmation prompts
 validate:            # Command to run before marking done (e.g., pnpm test)
 EOF
-      echo -e "${GREEN}Created .agent/config.yml${NC}"
-    fi
-    
-    echo -e "${BLUE}Project initialized for next-task${NC}"
-    ;;
-    
-  status|s)
+    echo -e "${GREEN}Created .agent/config.yml${NC}"
+  fi
+  
+  init_state
+  
+  if [ ! -f "$LOG_FILE" ]; then
+    echo "# Task Log" > "$LOG_FILE"
+    echo "" >> "$LOG_FILE"
+    echo "Completion history for $PROJECT_NAME" >> "$LOG_FILE"
+    echo -e "${GREEN}Created LOG.md${NC}"
+  fi
+  
+  echo -e "${BLUE}Project initialized for next-task v2${NC}"
+}
+
+cmd_run() {
+  init_state
+  
+  # Check for in-progress task
+  local in_progress=$(get_in_progress_id)
+  if [ -n "$in_progress" ]; then
+    parse_task "$in_progress"
+    echo -e "${YELLOW}Task already in progress:${NC} $TASK_ID: $TASK_TITLE"
+    echo "Run 'next done' to complete it, or 'next skip' to skip."
+    return 1
+  fi
+  
+  # Find next ready task
+  local next_task=$(find_next_task)
+  
+  if [ -z "$next_task" ]; then
+    echo -e "${GREEN}🎉 All tasks complete (or blocked)!${NC}"
     show_status
-    ;;
-    
-  list|l)
+    return 0
+  fi
+  
+  # Parse the task
+  parse_task "$next_task"
+  
+  echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo -e "${BOLD}Task:${NC} $TASK_ID: $TASK_TITLE"
+  echo -e "${BOLD}Agent:${NC} $TASK_AGENT"
+  [ -n "$TASK_ARTIFACTS" ] && echo -e "${BOLD}Artifacts:${NC} $TASK_ARTIFACTS"
+  [ -n "$TASK_COMMIT" ] && echo -e "${BOLD}Commit:${NC} $TASK_COMMIT"
+  echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo ""
+  
+  # Mark in progress
+  set_in_progress "$TASK_ID"
+  
+  # Build prompt and run agent
+  local prompt=$(build_prompt)
+  run_agent "$prompt"
+  local agent_exit=$?
+  
+  echo ""
+  echo -e "${GREEN}Agent finished.${NC}"
+  
+  # Auto-commit if specified
+  local commit_hash=""
+  if [ -n "$TASK_COMMIT" ]; then
+    echo ""
+    echo -e "${BLUE}Auto-committing:${NC} $TASK_COMMIT"
+    git add -A
+    if git commit -m "$TASK_COMMIT"; then
+      commit_hash=$(git rev-parse --short HEAD 2>/dev/null || echo "")
+      echo -e "${GREEN}✅ Committed ($commit_hash)${NC}"
+    else
+      echo -e "${YELLOW}No changes to commit${NC}"
+    fi
+  fi
+  
+  # Auto-mark done
+  echo ""
+  echo -e "${BLUE}Marking task complete...${NC}"
+  mark_task_done "$TASK_ID" "$commit_hash"
+  mark_done_in_tasks "$TASK_ID" "$commit_hash"
+  append_log "$TASK_ID" "$TASK_TITLE" "$commit_hash"
+  
+  echo -e "${GREEN}✅ Completed:${NC} $TASK_ID: $TASK_TITLE"
+  
+  # Log to CTO task-log if available
+  if [ -x "$HOME/clawd/scripts/task-log.sh" ]; then
+    "$HOME/clawd/scripts/task-log.sh" "$PROJECT_NAME" "$TASK_TITLE" done "next-task,$TASK_AGENT" "$commit_hash" 2>/dev/null && \
+      echo -e "${CYAN}📝 Logged to task-log${NC}"
+  fi
+  
+  echo ""
+  show_status
+}
+
+cmd_done() {
+  init_state
+  
+  local in_progress=$(get_in_progress_id)
+  if [ -z "$in_progress" ]; then
+    echo -e "${YELLOW}No task in progress${NC}"
+    return 1
+  fi
+  
+  parse_task "$in_progress"
+  
+  # Run validation if configured
+  if [ -n "$VALIDATE_CMD" ]; then
+    echo -e "${BLUE}Running validation:${NC} $VALIDATE_CMD"
+    if ! eval "$VALIDATE_CMD"; then
+      echo -e "${RED}Validation failed. Fix issues before marking done.${NC}"
+      return 1
+    fi
+    echo -e "${GREEN}Validation passed${NC}"
+  fi
+  
+  # Commit if specified
+  local commit_hash=""
+  if [ -n "$TASK_COMMIT" ]; then
+    echo -e "${BLUE}Committing:${NC} $TASK_COMMIT"
+    git add -A
+    if git commit -m "$TASK_COMMIT"; then
+      commit_hash=$(git rev-parse --short HEAD 2>/dev/null || echo "")
+      echo -e "${GREEN}Committed ($commit_hash)${NC}"
+    fi
+  fi
+  
+  # Mark done
+  mark_task_done "$TASK_ID" "$commit_hash"
+  mark_done_in_tasks "$TASK_ID" "$commit_hash"
+  append_log "$TASK_ID" "$TASK_TITLE" "$commit_hash"
+  
+  echo -e "${GREEN}✅ Completed:${NC} $TASK_ID: $TASK_TITLE"
+  
+  # Log to CTO task-log if available
+  if [ -x "$HOME/clawd/scripts/task-log.sh" ]; then
+    "$HOME/clawd/scripts/task-log.sh" "$PROJECT_NAME" "$TASK_TITLE" done "next-task,$TASK_AGENT" "$commit_hash" 2>/dev/null && \
+      echo -e "${CYAN}📝 Logged to task-log${NC}"
+  fi
+  
+  echo ""
+  show_status
+}
+
+cmd_skip() {
+  init_state
+  
+  local in_progress=$(get_in_progress_id)
+  if [ -z "$in_progress" ]; then
+    echo -e "${YELLOW}No task in progress to skip${NC}"
+    return 1
+  fi
+  
+  parse_task "$in_progress"
+  clear_in_progress
+  
+  echo -e "${YELLOW}Skipped:${NC} $TASK_ID: $TASK_TITLE"
+  echo "Task is still in TASKS.md, will be picked up again when ready."
+  echo ""
+  show_status
+}
+
+cmd_list() {
+  if [ -f "$TASKS_FILE" ]; then
     cat "$TASKS_FILE"
-    ;;
-    
-  done|d)
-    mark_done
-    ;;
-    
-  add|a)
-    shift
-    if [ $# -lt 1 ]; then
-      echo "Usage: next add <task description> [@agent]"
-      exit 1
-    fi
-    
-    # Find highest task number
-    last_num=$(grep -oE '^### T([0-9]+):' "$TASKS_FILE" | grep -oE '[0-9]+' | sort -n | tail -1 || echo "0")
-    new_num=$((last_num + 1))
-    
-    task_desc="$*"
-    agent_tag="@codex"
-    if echo "$task_desc" | grep -q '@claude'; then
-      agent_tag="@claude"
-      task_desc=$(echo "$task_desc" | sed 's/ *@claude//')
-    elif echo "$task_desc" | grep -q '@codex'; then
-      agent_tag="@codex"
-      task_desc=$(echo "$task_desc" | sed 's/ *@codex//')
-    fi
-    
-    # Add before ## In Progress
-    sed -i '' "/^## In Progress/i\\
-\\
-### T$new_num: $task_desc $agent_tag\\
-**Depends:** (none)\\
-**Artifacts:** \\
-**Commit:** \`feat: \`\\
-\\
-" "$TASKS_FILE"
-    
-    echo -e "${GREEN}Added:${NC} T$new_num: $task_desc $agent_tag"
-    ;;
-    
-  run|"")
-    # Check for in-progress task
-    in_progress=$(get_in_progress)
-    if [ -n "$in_progress" ]; then
-      parse_task "$in_progress" ""
-      echo -e "${YELLOW}Task already in progress:${NC} $TASK_TITLE"
-      echo "Run 'next done' to complete it, or 'next skip' to skip."
-      exit 1
-    fi
-    
-    # Find next ready task
-    next_task=$(find_next_task)
-    
-    if [ -z "$next_task" ]; then
-      echo -e "${GREEN}🎉 All tasks complete!${NC}"
-      show_status
-      exit 0
-    fi
-    
-    # Parse the task
-    task_body=$(sed -n "/$(echo "$next_task" | sed 's/[[\.*^$()+?{|]/\\&/g')/,/^###\\|^##/p" "$TASKS_FILE" | tail -n +2 | sed '/^###\|^##/d')
-    parse_task "$next_task" "$task_body"
-    
-    echo -e "${BOLD}Next task:${NC} $TASK_TITLE"
-    echo -e "${BOLD}Agent:${NC} $TASK_AGENT"
-    [ -n "$TASK_ARTIFACTS" ] && echo -e "${BOLD}Artifacts:${NC} $TASK_ARTIFACTS"
-    [ -n "$TASK_COMMIT" ] && echo -e "${BOLD}Commit:${NC} $TASK_COMMIT"
-    echo ""
-    
-    # Move to in progress
-    move_to_in_progress "$next_task"
-    
-    # Build prompt and run
-    prompt=$(build_prompt)
-    run_agent "$prompt"
-    
-    echo ""
-    echo -e "${GREEN}Agent finished.${NC}"
-    
-    # Auto-commit if commit message specified
-    commit_hash=""
-    if [ -n "$TASK_COMMIT" ]; then
-      echo ""
-      echo -e "${BLUE}Auto-committing:${NC} $TASK_COMMIT"
-      git add -A
-      if git commit -m "$TASK_COMMIT"; then
-        commit_hash=$(git rev-parse --short HEAD 2>/dev/null || echo "")
-        echo -e "${GREEN}✅ Committed ($commit_hash)${NC}"
-      else
-        echo -e "${YELLOW}No changes to commit${NC}"
-      fi
-    fi
-    
-    # Auto-mark task as done
-    echo ""
-    echo -e "${BLUE}Marking task complete...${NC}"
-    timestamp=$(date '+%Y-%m-%d')
-    
-    # Remove from In Progress section
-    temp_file=$(mktemp)
-    skip_section=false
-    while IFS= read -r line; do
-      if echo "$line" | grep -qE '^## In Progress'; then
-        echo "$line" >> "$temp_file"
-        echo "" >> "$temp_file"
-        skip_section=true
-        continue
-      fi
-      if [ "$skip_section" = true ]; then
-        if echo "$line" | grep -qE '^## '; then
-          skip_section=false
-          echo "$line" >> "$temp_file"
-        fi
-        continue
-      fi
-      echo "$line" >> "$temp_file"
-    done < "$TASKS_FILE"
-    mv "$temp_file" "$TASKS_FILE"
-    
-    # Add to Done section (portable method - no sed -i issues)
-    temp_file=$(mktemp)
-    done_written=false
-    while IFS= read -r line; do
-      echo "$line" >> "$temp_file"
-      if [ "$done_written" = false ] && echo "$line" | grep -qE '^## Done'; then
-        echo "" >> "$temp_file"
-        echo "### $TASK_ID: $TASK_TITLE @$TASK_AGENT ✅" >> "$temp_file"
-        if [ -n "$commit_hash" ]; then
-          echo "**Completed:** $timestamp | Commit: $commit_hash" >> "$temp_file"
-        else
-          echo "**Completed:** $timestamp" >> "$temp_file"
-        fi
-        done_written=true
-      fi
-    done < "$TASKS_FILE"
-    mv "$temp_file" "$TASKS_FILE"
-    
-    echo -e "${GREEN}✅ Completed:${NC} $TASK_TITLE"
-    
-    # Log to CTO task-log if available
-    if [ -x "$HOME/clawd/scripts/task-log.sh" ]; then
-      "$HOME/clawd/scripts/task-log.sh" "$PROJECT_NAME" "$TASK_TITLE" done "agent-runner,$TASK_AGENT" "$commit_hash" 2>/dev/null && \
-        echo -e "${CYAN}📝 Logged to task-log${NC}"
-    fi
-    
-    # Show status
-    echo ""
-    show_status
-    ;;
-    
-  skip)
-    in_progress=$(get_in_progress)
-    if [ -z "$in_progress" ]; then
-      echo -e "${YELLOW}No task in progress to skip${NC}"
-      exit 1
-    fi
-    
-    parse_task "$in_progress" ""
-    echo -e "${YELLOW}Skipped:${NC} $TASK_TITLE"
-    echo "Task moved back to Ready. Run 'next' to pick up next task."
-    
-    # For now, just clear In Progress (task is lost - TODO: move to blocked)
-    temp_file=$(mktemp)
-    skip_until_next=false
-    
-    while IFS= read -r line; do
-      if echo "$line" | grep -qE '^## In Progress'; then
-        echo "$line" >> "$temp_file"
-        skip_until_next=true
-        continue
-      fi
-      if [ "$skip_until_next" = true ]; then
-        if echo "$line" | grep -qE '^## '; then
-          skip_until_next=false
-          echo "$line" >> "$temp_file"
-        fi
-        continue
-      fi
-      echo "$line" >> "$temp_file"
-    done < "$TASKS_FILE"
-    
-    mv "$temp_file" "$TASKS_FILE"
-    ;;
-    
-  help|--help|-h)
-    echo "next-task: Task queue runner for AI coding agents"
-    echo ""
-    echo "Usage: next [command]"
-    echo ""
-    echo "Commands:"
-    echo "  run        Run next ready task (default)"
-    echo "  status     Show task status"
-    echo "  list       Show full TASKS.md"
-    echo "  done       Mark current task complete"
-    echo "  add        Add a new task"
-    echo "  skip       Skip current task"
-    echo "  init       Initialize project"
-    echo "  help       Show this help"
-    ;;
-    
+  else
+    echo "No TASKS.md found"
+  fi
+}
+
+cmd_log() {
+  if [ -f "$LOG_FILE" ]; then
+    cat "$LOG_FILE"
+  else
+    echo "No LOG.md found"
+  fi
+}
+
+cmd_reset() {
+  init_state
+  clear_in_progress
+  echo -e "${GREEN}Cleared in-progress state${NC}"
+  show_status
+}
+
+cmd_help() {
+  echo "next-task v2: Task queue runner for AI coding agents"
+  echo ""
+  echo "Usage: next [command]"
+  echo ""
+  echo "Commands:"
+  echo "  (default)  Run next ready task"
+  echo "  status     Show task status"
+  echo "  done       Mark current task complete (manual mode)"
+  echo "  skip       Skip current task"
+  echo "  list       Show TASKS.md"
+  echo "  log        Show LOG.md"
+  echo "  reset      Clear in-progress state"
+  echo "  init       Initialize project"
+  echo "  help       Show this help"
+  echo ""
+  echo "State is stored in .agent/state.json"
+  echo "Completion log is in LOG.md"
+}
+
+#######################################
+# Main
+#######################################
+
+load_config
+
+case "${1:-run}" in
+  init)     cmd_init ;;
+  status|s) init_state; show_status ;;
+  done|d)   cmd_done ;;
+  skip)     cmd_skip ;;
+  list|l)   cmd_list ;;
+  log)      cmd_log ;;
+  reset)    cmd_reset ;;
+  run|"")   cmd_run ;;
+  help|--help|-h) cmd_help ;;
   *)
     echo "Unknown command: $1"
-    echo "Run 'next help' for usage"
+    cmd_help
     exit 1
     ;;
 esac
