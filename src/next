@@ -216,7 +216,7 @@ run_agent() {
   
   if [ "$TASK_AGENT" = "codex" ]; then
     CMD="codex"
-    $YOLO && CMD="$CMD --ask-for-approval never"
+    $YOLO && CMD="$CMD --full-auto"
     
     # Codex: write combined prompt with context
     TEMP_PROMPT=$(mktemp)
