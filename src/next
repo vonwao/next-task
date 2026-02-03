@@ -348,10 +348,14 @@ run_agent() {
     CMD="codex exec"
     $YOLO && CMD="$CMD --dangerously-bypass-approvals-and-sandbox"
     
-    # Build prompt with AGENT.md context
+    # Build prompt with AGENT.md + guardrails context
     TEMP_PROMPT=$(mktemp)
     if [ -f "$AGENT_FILE" ]; then
       cat "$AGENT_FILE" > "$TEMP_PROMPT"
+      echo -e "\n---\n" >> "$TEMP_PROMPT"
+    fi
+    if [ -f ".agent/guardrails.md" ]; then
+      cat ".agent/guardrails.md" >> "$TEMP_PROMPT"
       echo -e "\n---\n" >> "$TEMP_PROMPT"
     fi
     echo "$prompt" >> "$TEMP_PROMPT"
@@ -374,9 +378,19 @@ run_agent() {
       CREATED_SYMLINK=true
     fi
     
+    # Prepend guardrails to prompt if exists
+    local full_prompt="$prompt"
+    if [ -f ".agent/guardrails.md" ]; then
+      full_prompt="$(cat .agent/guardrails.md)
+
+---
+
+$prompt"
+    fi
+    
     echo -e "${MAGENTA}▶ Running Claude Code (non-interactive)${NC}"
     echo ""
-    $CMD "$prompt"
+    $CMD "$full_prompt"
     local exit_code=$?
     
     [ "$CREATED_SYMLINK" = "true" ] && rm -f "$PROJECT_DIR/CLAUDE.md"
@@ -618,6 +632,18 @@ cmd_run() {
     fi
   fi
   
+  # Run validation if configured
+  if [ -n "$VALIDATE_CMD" ]; then
+    echo ""
+    echo -e "${BLUE}Running validation:${NC} $VALIDATE_CMD"
+    if ! eval "$VALIDATE_CMD"; then
+      echo -e "${RED}❌ Validation failed${NC}"
+      echo -e "${DIM}Fix the issues and run 'next done' to complete, or 'next skip' to skip.${NC}"
+      return 1
+    fi
+    echo -e "${GREEN}✅ Validation passed${NC}"
+  fi
+  
   # Auto-mark done
   echo ""
   echo -e "${BLUE}Marking task complete...${NC}"
@@ -736,6 +762,27 @@ cmd_reset() {
   clear_in_progress
   echo -e "${GREEN}Cleared in-progress state${NC}"
   show_status
+}
+
+cmd_retry() {
+  init_state
+  
+  local in_progress=$(get_in_progress_id)
+  if [ -z "$in_progress" ]; then
+    echo -e "${YELLOW}No task in progress to retry${NC}"
+    echo -e "${DIM}Use 'next run' to start a new task.${NC}"
+    return 1
+  fi
+  
+  parse_task "$in_progress"
+  echo -e "${CYAN}Retrying:${NC} $TASK_ID: $TASK_TITLE"
+  echo ""
+  
+  # Clear in-progress so cmd_run picks it up fresh
+  clear_in_progress
+  
+  # Run the task
+  cmd_run
 }
 
 cmd_commit() {
@@ -877,17 +924,51 @@ cmd_loop() {
     # Check if agent failed (non-zero exit, no commits, no changes)
     if [ "$agent_exit" -ne 0 ] && [ -z "$commit_hash" ]; then
       failures=$((failures + 1))
-      echo -e "${RED}⚠️  Task may have failed (exit: $agent_exit, no commit)${NC}"
+      echo ""
+      echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+      echo -e "${RED}⚠️  Task failed (exit code: $agent_exit)${NC}"
+      echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+      echo ""
+      echo -e "${DIM}Possible causes:${NC}"
+      echo -e "${DIM}  • Agent hit an error or rate limit${NC}"
+      echo -e "${DIM}  • Task description unclear${NC}"
+      echo -e "${DIM}  • Missing dependencies or context${NC}"
+      echo ""
+      echo -e "${DIM}Check:${NC}"
+      echo -e "${DIM}  • git status (any uncommitted changes?)${NC}"
+      echo -e "${DIM}  • git diff (what did the agent do?)${NC}"
+      echo ""
       
       if [ "$failures" -ge "$max_failures" ]; then
         echo -e "${RED}Too many failures ($failures). Stopping loop.${NC}"
-        echo -e "${DIM}Run 'next skip' to skip this task, or 'next reset' to clear state.${NC}"
+        echo ""
+        echo -e "${CYAN}Next steps:${NC}"
+        echo -e "  ${BOLD}next skip${NC}    — Skip this task and continue"
+        echo -e "  ${BOLD}next reset${NC}   — Clear in-progress state"
+        echo -e "  ${BOLD}next run${NC}     — Try again manually"
         break
       fi
       
       echo -e "${YELLOW}Retrying... (failure $failures/$max_failures)${NC}"
       sleep 2
       continue
+    fi
+    
+    # Run validation if configured
+    if [ -n "$VALIDATE_CMD" ]; then
+      echo -e "${BLUE}Validating:${NC} $VALIDATE_CMD"
+      if ! eval "$VALIDATE_CMD"; then
+        failures=$((failures + 1))
+        echo -e "${RED}❌ Validation failed${NC}"
+        if [ "$failures" -ge "$max_failures" ]; then
+          echo -e "${RED}Too many failures. Stopping loop.${NC}"
+          break
+        fi
+        echo -e "${YELLOW}Retrying... (failure $failures/$max_failures)${NC}"
+        sleep 2
+        continue
+      fi
+      echo -e "${GREEN}✅ Validation passed${NC}"
     fi
     
     # Success - mark done
@@ -967,6 +1048,7 @@ cmd_help() {
   echo "  done       Mark current task complete (manual mode)"
   echo "  commit     Commit changes (uses task message or custom)"
   echo "  skip       Skip current task"
+  echo "  retry      Retry the in-progress task"
   echo "  list       Show TASKS.md"
   echo "  log        Show LOG.md"
   echo "  reset      Clear in-progress state"
@@ -998,6 +1080,7 @@ case "${1:-run}" in
   list|l)   cmd_list ;;
   log)      cmd_log ;;
   reset)    cmd_reset ;;
+  retry|r)  cmd_retry ;;
   commit|c) cmd_commit "$2" ;;
   loop)     cmd_loop "$2" "$3" ;;
   preview|p) cmd_preview ;;
