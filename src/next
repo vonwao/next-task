@@ -100,10 +100,10 @@ parse_task() {
   # Extract title (everything between ID: and @agent or flags)
   TASK_TITLE=$(echo "$task_header" | sed -E 's/^### T[0-9a-zA-Z_-]+: //' | sed -E 's/ @(claude|codex).*//' | sed -E 's/ \[.*//')
   
-  # Extract metadata from body (use || true to handle missing fields)
-  TASK_DEPENDS=$(echo "$task_body" | grep -E '^\*\*Depends:\*\*' | sed 's/\*\*Depends:\*\* //' || true)
-  TASK_ARTIFACTS=$(echo "$task_body" | grep -E '^\*\*Artifacts:\*\*' | sed 's/\*\*Artifacts:\*\* //' || true)
-  TASK_COMMIT=$(echo "$task_body" | grep -E '^\*\*Commit:\*\*' | sed 's/\*\*Commit:\*\* //' | tr -d '`' || true)
+  # Extract metadata from body (use head -1 to get only first match, || true for missing)
+  TASK_DEPENDS=$(echo "$task_body" | grep -E '^\*\*Depends:\*\*' | head -1 | sed 's/\*\*Depends:\*\* //' || true)
+  TASK_ARTIFACTS=$(echo "$task_body" | grep -E '^\*\*Artifacts:\*\*' | head -1 | sed 's/\*\*Artifacts:\*\* //' || true)
+  TASK_COMMIT=$(echo "$task_body" | grep -E '^\*\*Commit:\*\*' | head -1 | sed 's/\*\*Commit:\*\* //' | tr -d '`' || true)
   
   # Extract description (everything except metadata lines)
   TASK_DESC=$(echo "$task_body" | grep -v -E '^\*\*(Depends|Artifacts|Commit|Started|Parallel):\*\*' | sed '/^$/d')
