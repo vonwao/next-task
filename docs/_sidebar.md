@@ -28,5 +28,8 @@
   * [AGENT.md](configuration/agent-md.md)
   * [Guardrails](configuration/guardrails.md)
 
+* **Case Studies**
+  * [Dogfooding](case-studies/dogfooding.md)
+
 * **Roadmap**
   * [Ralph Integration](roadmap/ralph-integration.md)
