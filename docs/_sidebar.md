@@ -16,6 +16,7 @@
   * [next done](commands/done.md)
   * [next commit](commands/commit.md)
   * [next skip](commands/skip.md)
+  * [next retry](commands/retry.md)
   * [next status](commands/status.md)
   * [next init](commands/init.md)
   * [next list](commands/list.md)
@@ -25,6 +26,7 @@
 * **Configuration**
   * [Config File](configuration/config-file.md)
   * [AGENT.md](configuration/agent-md.md)
+  * [Guardrails](configuration/guardrails.md)
 
 * **Roadmap**
   * [Ralph Integration](roadmap/ralph-integration.md)
