@@ -589,20 +589,74 @@ EOF
     echo -e "${GREEN}Agent finished.${NC}"
     
     # Auto-commit if commit message specified
+    commit_hash=""
     if [ -n "$TASK_COMMIT" ]; then
       echo ""
       echo -e "${BLUE}Auto-committing:${NC} $TASK_COMMIT"
       git add -A
       if git commit -m "$TASK_COMMIT"; then
-        echo -e "${GREEN}✅ Committed${NC}"
+        commit_hash=$(git rev-parse --short HEAD 2>/dev/null || echo "")
+        echo -e "${GREEN}✅ Committed ($commit_hash)${NC}"
       else
-        echo -e "${YELLOW}No changes to commit (or commit failed)${NC}"
+        echo -e "${YELLOW}No changes to commit${NC}"
       fi
     fi
     
+    # Auto-mark task as done
     echo ""
-    echo "Run 'next done' to mark complete and move to next task."
-    echo "Or 'next skip' to skip this task."
+    echo -e "${BLUE}Marking task complete...${NC}"
+    timestamp=$(date '+%Y-%m-%d')
+    
+    # Remove from In Progress section
+    temp_file=$(mktemp)
+    skip_section=false
+    while IFS= read -r line; do
+      if echo "$line" | grep -qE '^## In Progress'; then
+        echo "$line" >> "$temp_file"
+        echo "" >> "$temp_file"
+        skip_section=true
+        continue
+      fi
+      if [ "$skip_section" = true ]; then
+        if echo "$line" | grep -qE '^## '; then
+          skip_section=false
+          echo "$line" >> "$temp_file"
+        fi
+        continue
+      fi
+      echo "$line" >> "$temp_file"
+    done < "$TASKS_FILE"
+    mv "$temp_file" "$TASKS_FILE"
+    
+    # Add to Done section (portable method - no sed -i issues)
+    temp_file=$(mktemp)
+    done_written=false
+    while IFS= read -r line; do
+      echo "$line" >> "$temp_file"
+      if [ "$done_written" = false ] && echo "$line" | grep -qE '^## Done'; then
+        echo "" >> "$temp_file"
+        echo "### $TASK_ID: $TASK_TITLE @$TASK_AGENT ✅" >> "$temp_file"
+        if [ -n "$commit_hash" ]; then
+          echo "**Completed:** $timestamp | Commit: $commit_hash" >> "$temp_file"
+        else
+          echo "**Completed:** $timestamp" >> "$temp_file"
+        fi
+        done_written=true
+      fi
+    done < "$TASKS_FILE"
+    mv "$temp_file" "$TASKS_FILE"
+    
+    echo -e "${GREEN}✅ Completed:${NC} $TASK_TITLE"
+    
+    # Log to CTO task-log if available
+    if [ -x "$HOME/clawd/scripts/task-log.sh" ]; then
+      "$HOME/clawd/scripts/task-log.sh" "$PROJECT_NAME" "$TASK_TITLE" done "agent-runner,$TASK_AGENT" "$commit_hash" 2>/dev/null && \
+        echo -e "${CYAN}📝 Logged to task-log${NC}"
+    fi
+    
+    # Show status
+    echo ""
+    show_status
     ;;
     
   skip)
