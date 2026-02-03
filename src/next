@@ -2,7 +2,8 @@
 # next - Task queue runner for AI coding agents
 # https://github.com/vonwao/next-task
 
-set -e
+# Note: Not using set -e because grep/sed return non-zero on no-match,
+# which would cause spurious exits. We handle errors explicitly.
 
 # Colors
 RED='\033[0;31m'
@@ -79,18 +80,30 @@ parse_task() {
     TASK_AGENT="$DEFAULT_AGENT"
   fi
   
-  # Check for flags
-  TASK_USE_SUBAGENTS=$(echo "$task_header" | grep -q '\[use-subagents\]' && echo "true" || echo "false")
-  TASK_RESEARCH=$(echo "$task_header" | grep -q '\[research\]' && echo "true" || echo "false")
-  TASK_MANUAL=$(echo "$task_header" | grep -q '\[manual\]' && echo "true" || echo "false")
+  # Check for flags (use if/then to avoid set -e issues)
+  if echo "$task_header" | grep -q '\[use-subagents\]'; then
+    TASK_USE_SUBAGENTS="true"
+  else
+    TASK_USE_SUBAGENTS="false"
+  fi
+  if echo "$task_header" | grep -q '\[research\]'; then
+    TASK_RESEARCH="true"
+  else
+    TASK_RESEARCH="false"
+  fi
+  if echo "$task_header" | grep -q '\[manual\]'; then
+    TASK_MANUAL="true"
+  else
+    TASK_MANUAL="false"
+  fi
   
   # Extract title (everything between ID: and @agent or flags)
   TASK_TITLE=$(echo "$task_header" | sed -E 's/^### T[0-9a-zA-Z_-]+: //' | sed -E 's/ @(claude|codex).*//' | sed -E 's/ \[.*//')
   
-  # Extract metadata from body
-  TASK_DEPENDS=$(echo "$task_body" | grep -E '^\*\*Depends:\*\*' | sed 's/\*\*Depends:\*\* //' || echo "")
-  TASK_ARTIFACTS=$(echo "$task_body" | grep -E '^\*\*Artifacts:\*\*' | sed 's/\*\*Artifacts:\*\* //' || echo "")
-  TASK_COMMIT=$(echo "$task_body" | grep -E '^\*\*Commit:\*\*' | sed 's/\*\*Commit:\*\* //' | tr -d '`' || echo "")
+  # Extract metadata from body (use || true to handle missing fields)
+  TASK_DEPENDS=$(echo "$task_body" | grep -E '^\*\*Depends:\*\*' | sed 's/\*\*Depends:\*\* //' || true)
+  TASK_ARTIFACTS=$(echo "$task_body" | grep -E '^\*\*Artifacts:\*\*' | sed 's/\*\*Artifacts:\*\* //' || true)
+  TASK_COMMIT=$(echo "$task_body" | grep -E '^\*\*Commit:\*\*' | sed 's/\*\*Commit:\*\* //' | tr -d '`' || true)
   
   # Extract description (everything except metadata lines)
   TASK_DESC=$(echo "$task_body" | grep -v -E '^\*\*(Depends|Artifacts|Commit|Started|Parallel):\*\*' | sed '/^$/d')
@@ -378,7 +391,8 @@ show_status() {
   local found_ready=false
   local done_tasks=$(get_done_tasks)
   
-  grep -E '^### T[0-9a-zA-Z_-]+:' "$TASKS_FILE" 2>/dev/null | while read -r line; do
+  # Use process substitution to avoid subshell (so found_ready persists)
+  while read -r line; do
     # Skip if in Done section
     if sed -n '/^## Done/,$ p' "$TASKS_FILE" | grep -qF "$line"; then
       continue
@@ -388,15 +402,29 @@ show_status() {
       continue
     fi
     
-    # Parse and check deps
-    local task_body=$(sed -n "/$(echo "$line" | sed 's/[[\.*^$()+?{|]/\\&/g')/,/^###\\|^##/p" "$TASKS_FILE" | tail -n +2 | sed '/^###\|^##/d')
+    # Parse and check deps - extract body until next ### or ## line
+    local task_body=""
+    local in_task=false
+    while IFS= read -r bodyline; do
+      if [ "$bodyline" = "$line" ]; then
+        in_task=true
+        continue
+      fi
+      if [ "$in_task" = true ]; then
+        # Stop at next task or section header
+        if echo "$bodyline" | grep -qE '^### |^## '; then
+          break
+        fi
+        task_body="${task_body}${bodyline}"$'\n'
+      fi
+    done < "$TASKS_FILE"
     parse_task "$line" "$task_body"
     
     if deps_met "$TASK_DEPENDS"; then
       echo -e "  • $TASK_TITLE ${CYAN}@$TASK_AGENT${NC}"
       found_ready=true
     fi
-  done
+  done < <(grep -E '^### T[0-9a-zA-Z_-]+:' "$TASKS_FILE" 2>/dev/null)
   
   [ "$found_ready" = false ] && echo "  (none ready - check dependencies)"
   echo ""
