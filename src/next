@@ -785,13 +785,149 @@ cmd_commit() {
   fi
 }
 
+cmd_loop() {
+  local max_iterations="${1:-0}"
+  local push_after="${2:-false}"
+  local iteration=0
+  local failures=0
+  local max_failures=3
+  
+  init_state
+  
+  echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo -e "${MAGENTA}🔄 RALPH MODE: Continuous Loop${NC}"
+  [ "$max_iterations" -gt 0 ] && echo -e "${DIM}Max iterations: $max_iterations${NC}"
+  echo -e "${DIM}Press Ctrl+C to stop${NC}"
+  echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo ""
+  
+  while true; do
+    # Check iteration limit
+    if [ "$max_iterations" -gt 0 ] && [ "$iteration" -ge "$max_iterations" ]; then
+      echo ""
+      echo -e "${GREEN}🏁 Reached max iterations ($max_iterations)${NC}"
+      break
+    fi
+    
+    iteration=$((iteration + 1))
+    echo ""
+    echo -e "${CYAN}════════════════════ ITERATION $iteration ════════════════════${NC}"
+    echo ""
+    
+    # Check for in-progress task (resume it)
+    local in_progress=$(get_in_progress_id)
+    local task_to_run=""
+    
+    if [ -n "$in_progress" ]; then
+      echo -e "${YELLOW}Resuming in-progress task: $in_progress${NC}"
+      task_to_run="$in_progress"
+    else
+      # Find next ready task
+      task_to_run=$(find_next_task)
+    fi
+    
+    if [ -z "$task_to_run" ]; then
+      echo -e "${GREEN}🎉 All tasks complete!${NC}"
+      break
+    fi
+    
+    # Parse the task
+    parse_task "$task_to_run"
+    
+    echo -e "${BOLD}Task:${NC} $TASK_ID: $TASK_TITLE"
+    echo -e "${BOLD}Agent:${NC} $TASK_AGENT"
+    [ -n "$TASK_ARTIFACTS" ] && echo -e "${DIM}Artifacts: $TASK_ARTIFACTS${NC}"
+    echo ""
+    
+    # Mark in progress if not already
+    if [ -z "$in_progress" ]; then
+      set_in_progress "$TASK_ID"
+    fi
+    
+    # Capture HEAD before agent runs
+    local head_before=$(git rev-parse --short HEAD 2>/dev/null || echo "")
+    
+    # Build prompt and run agent
+    local prompt=$(build_prompt)
+    run_agent "$prompt"
+    local agent_exit=$?
+    
+    echo ""
+    
+    # Capture HEAD after agent
+    local head_after=$(git rev-parse --short HEAD 2>/dev/null || echo "")
+    local commit_hash=""
+    
+    # Did the agent commit?
+    if [ "$head_after" != "$head_before" ]; then
+      commit_hash="$head_after"
+      echo -e "${CYAN}Agent committed: $commit_hash${NC}"
+    fi
+    
+    # Auto-commit if specified AND agent didn't commit
+    if [ -n "$TASK_COMMIT" ] && [ -z "$commit_hash" ]; then
+      echo -e "${BLUE}Auto-committing:${NC} $TASK_COMMIT"
+      git add -A
+      if git commit -m "$TASK_COMMIT"; then
+        commit_hash=$(git rev-parse --short HEAD 2>/dev/null || echo "")
+        echo -e "${GREEN}Committed ($commit_hash)${NC}"
+      fi
+    fi
+    
+    # Check if agent failed (non-zero exit, no commits, no changes)
+    if [ "$agent_exit" -ne 0 ] && [ -z "$commit_hash" ]; then
+      failures=$((failures + 1))
+      echo -e "${RED}⚠️  Task may have failed (exit: $agent_exit, no commit)${NC}"
+      
+      if [ "$failures" -ge "$max_failures" ]; then
+        echo -e "${RED}Too many failures ($failures). Stopping loop.${NC}"
+        echo -e "${DIM}Run 'next skip' to skip this task, or 'next reset' to clear state.${NC}"
+        break
+      fi
+      
+      echo -e "${YELLOW}Retrying... (failure $failures/$max_failures)${NC}"
+      sleep 2
+      continue
+    fi
+    
+    # Success - mark done
+    failures=0
+    mark_task_done "$TASK_ID" "$commit_hash"
+    mark_done_in_tasks "$TASK_ID" "$commit_hash"
+    append_log "$TASK_ID" "$TASK_TITLE" "$commit_hash"
+    
+    echo -e "${GREEN}✅ Completed:${NC} $TASK_ID: $TASK_TITLE"
+    
+    # Log to CTO task-log if available
+    if [ -x "$HOME/clawd/scripts/task-log.sh" ]; then
+      "$HOME/clawd/scripts/task-log.sh" "$PROJECT_NAME" "$TASK_TITLE" done "next-task,$TASK_AGENT" "$commit_hash" 2>/dev/null
+    fi
+    
+    # Optional: push after each iteration
+    if [ "$push_after" = "true" ] || [ "$push_after" = "--push" ]; then
+      echo -e "${DIM}Pushing...${NC}"
+      git push 2>/dev/null || git push -u origin "$(git branch --show-current)" 2>/dev/null
+    fi
+    
+    # Brief pause between iterations
+    sleep 1
+  done
+  
+  echo ""
+  echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  echo -e "${MAGENTA}Loop finished after $iteration iterations${NC}"
+  echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+  show_status
+}
+
 cmd_help() {
   echo "next-task v2: Task queue runner for AI coding agents"
   echo ""
   echo "Usage: next [command]"
   echo ""
   echo "Commands:"
-  echo "  (default)  Run next ready task"
+  echo "  (default)  Run next ready task (single task, then stop)"
+  echo "  loop       🔄 Ralph mode: run tasks continuously until done"
   echo "  status     Show task status"
   echo "  done       Mark current task complete (manual mode)"
   echo "  commit     Commit changes (uses task message or custom)"
@@ -803,9 +939,11 @@ cmd_help() {
   echo "  help       Show this help"
   echo ""
   echo "Examples:"
-  echo "  next commit              # Uses TASK_COMMIT from current task"
-  echo "  next commit 'my message' # Uses custom message"
-  echo "  next c 'wip: feature'    # Short form"
+  echo "  next                     # Run one task"
+  echo "  next loop                # Run all tasks continuously (Ctrl+C to stop)"
+  echo "  next loop 10             # Run max 10 iterations"
+  echo "  next loop 0 --push       # Unlimited, push after each task"
+  echo "  next commit 'my message' # Commit with custom message"
   echo ""
   echo "State is stored in .agent/state.json"
   echo "Completion log is in LOG.md"
@@ -826,6 +964,7 @@ case "${1:-run}" in
   log)      cmd_log ;;
   reset)    cmd_reset ;;
   commit|c) cmd_commit "$2" ;;
+  loop)     cmd_loop "$2" "$3" ;;
   run|"")   cmd_run ;;
   help|--help|-h) cmd_help ;;
   *)
