@@ -364,7 +364,8 @@ run_agent() {
     return $exit_code
     
   else
-    CMD="claude"
+    # Use --print for non-interactive mode
+    CMD="claude --print"
     $YOLO && CMD="$CMD --dangerously-skip-permissions"
     
     # Symlink AGENT.md to CLAUDE.md if needed
@@ -373,7 +374,7 @@ run_agent() {
       CREATED_SYMLINK=true
     fi
     
-    echo -e "${MAGENTA}▶ Running Claude Code${NC}"
+    echo -e "${MAGENTA}▶ Running Claude Code (non-interactive)${NC}"
     echo ""
     $CMD "$prompt"
     local exit_code=$?
