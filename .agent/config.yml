@@ -1,0 +1,4 @@
+# Agent configuration
+agent: codex         # Default agent (claude or codex)
+yolo: true           # Skip confirmation prompts
+validate:            # Command to run before marking done (e.g., pnpm test)
