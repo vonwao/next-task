@@ -189,7 +189,7 @@ load_config() {
 }
 
 # Parse a task from TASKS.md
-# Sets: TASK_ID, TASK_TITLE, TASK_AGENT, TASK_DEPENDS, TASK_ARTIFACTS, TASK_COMMIT, TASK_DESC, TASK_FLAGS
+# Sets: TASK_ID, TASK_TITLE, TASK_AGENT, TASK_DEPENDS, TASK_SPEC, TASK_ARTIFACTS, TASK_COMMIT, TASK_DESC, TASK_FLAGS
 parse_task() {
   local task_id="$1"
   
@@ -237,11 +237,12 @@ parse_task() {
   
   # Extract metadata from body (only first match)
   TASK_DEPENDS=$(echo "$body" | grep -E '^\*\*Depends:\*\*' | head -1 | sed 's/\*\*Depends:\*\* //' || true)
+  TASK_SPEC=$(echo "$body" | grep -E '^\*\*Spec:\*\*' | head -1 | sed 's/\*\*Spec:\*\* //' || true)
   TASK_ARTIFACTS=$(echo "$body" | grep -E '^\*\*Artifacts:\*\*' | head -1 | sed 's/\*\*Artifacts:\*\* //' || true)
   TASK_COMMIT=$(echo "$body" | grep -E '^\*\*Commit:\*\*' | head -1 | sed 's/\*\*Commit:\*\* //' | tr -d '`' || true)
   
   # Description is everything except metadata
-  TASK_DESC=$(echo "$body" | grep -v -E '^\*\*(Depends|Artifacts|Commit|Status|Completed):\*\*' | sed '/^[[:space:]]*$/d')
+  TASK_DESC=$(echo "$body" | grep -v -E '^\*\*(Depends|Spec|Artifacts|Commit|Status|Completed):\*\*' | sed '/^[[:space:]]*$/d')
 }
 
 # Get all task IDs from TASKS.md
@@ -312,6 +313,17 @@ build_prompt() {
   local prompt="# Task: $TASK_TITLE
 
 $TASK_DESC"
+  
+  if [ -n "$TASK_SPEC" ]; then
+    if [ -f "$TASK_SPEC" ]; then
+      prompt="$prompt
+
+## Spec ($TASK_SPEC)
+$(cat "$TASK_SPEC")"
+    else
+      echo -e "${YELLOW}Warning: Spec file not found: $TASK_SPEC${NC}" >&2
+    fi
+  fi
   
   if [ -n "$TASK_ARTIFACTS" ]; then
     prompt="$prompt
@@ -590,6 +602,7 @@ cmd_run() {
   echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
   echo -e "${BOLD}Task:${NC} $TASK_ID: $TASK_TITLE"
   echo -e "${BOLD}Agent:${NC} $TASK_AGENT"
+  [ -n "$TASK_SPEC" ] && echo -e "${BOLD}Spec:${NC} $TASK_SPEC"
   [ -n "$TASK_ARTIFACTS" ] && echo -e "${BOLD}Artifacts:${NC} $TASK_ARTIFACTS"
   [ -n "$TASK_COMMIT" ] && echo -e "${BOLD}Commit:${NC} $TASK_COMMIT"
   echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -883,6 +896,7 @@ cmd_loop() {
     
     echo -e "${BOLD}Task:${NC} $TASK_ID: $TASK_TITLE"
     echo -e "${BOLD}Agent:${NC} $TASK_AGENT"
+    [ -n "$TASK_SPEC" ] && echo -e "${DIM}Spec: $TASK_SPEC${NC}"
     [ -n "$TASK_ARTIFACTS" ] && echo -e "${DIM}Artifacts: $TASK_ARTIFACTS${NC}"
     echo ""
     
@@ -1025,6 +1039,7 @@ cmd_preview() {
   echo -e "${BOLD}Task:${NC}      $TASK_ID: $TASK_TITLE"
   echo -e "${BOLD}Agent:${NC}     $TASK_AGENT"
   [ -n "$TASK_DEPENDS" ] && echo -e "${BOLD}Depends:${NC}   $TASK_DEPENDS"
+  [ -n "$TASK_SPEC" ] && echo -e "${BOLD}Spec:${NC}      $TASK_SPEC"
   [ -n "$TASK_ARTIFACTS" ] && echo -e "${BOLD}Artifacts:${NC} $TASK_ARTIFACTS"
   [ -n "$TASK_COMMIT" ] && echo -e "${BOLD}Commit:${NC}    $TASK_COMMIT"
   echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
