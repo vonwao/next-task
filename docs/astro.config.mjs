@@ -4,6 +4,8 @@ import starlight from '@astrojs/starlight';
 
 // https://astro.build/config
 export default defineConfig({
+	site: 'https://vonwao.github.io',
+	base: '/next-task',
 	integrations: [
 		starlight({
 			title: 'next-task',
