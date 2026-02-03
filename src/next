@@ -29,6 +29,7 @@ LOG_FILE="$PROJECT_DIR/LOG.md"
 DEFAULT_AGENT="codex"
 YOLO=true
 VALIDATE_CMD=""
+NOTIFICATIONS=true
 
 #######################################
 # State Management (JSON)
@@ -183,8 +184,35 @@ load_config() {
     DEFAULT_AGENT=$(grep -E '^agent:' "$CONFIG_FILE" 2>/dev/null | awk '{print $2}' | cut -d'#' -f1 | tr -d ' ' || echo "codex")
     YOLO_CFG=$(grep -E '^yolo:' "$CONFIG_FILE" 2>/dev/null | awk '{print $2}' | cut -d'#' -f1 | tr -d ' ' || echo "true")
     VALIDATE_CMD=$(grep -E '^validate:' "$CONFIG_FILE" 2>/dev/null | sed 's/^validate:[ ]*//' | cut -d'#' -f1 | sed 's/[ ]*$//' || true)
+    NOTIFICATIONS_CFG=$(grep -E '^notifications:' "$CONFIG_FILE" 2>/dev/null | awk '{print $2}' | cut -d'#' -f1 | tr -d ' ' || true)
     [ "$YOLO_CFG" = "false" ] && YOLO=false
     [ -z "$DEFAULT_AGENT" ] && DEFAULT_AGENT="codex"
+    if [ -n "$NOTIFICATIONS_CFG" ]; then
+      if [ "$NOTIFICATIONS_CFG" = "false" ] || [ "$NOTIFICATIONS_CFG" = "0" ] || [ "$NOTIFICATIONS_CFG" = "no" ]; then
+        NOTIFICATIONS=false
+      else
+        NOTIFICATIONS=true
+      fi
+    fi
+  fi
+}
+
+# Send desktop notification (best-effort)
+notify() {
+  local message="$1"
+  local title="${2:-next-task}"
+  
+  [ "$NOTIFICATIONS" = "false" ] && return 0
+  
+  local os_name
+  os_name=$(uname -s 2>/dev/null || echo "")
+  
+  if [ "$os_name" = "Darwin" ]; then
+    osascript -e "display notification \"$message\" with title \"$title\"" >/dev/null 2>&1
+  elif [ "$os_name" = "Linux" ]; then
+    if command -v notify-send >/dev/null 2>&1; then
+      notify-send "$title" "$message" >/dev/null 2>&1
+    fi
   fi
 }
 
@@ -559,6 +587,7 @@ EOF
 agent: codex         # Default agent (claude or codex)
 yolo: true           # Skip confirmation prompts
 validate:            # Command to run before marking done (e.g., pnpm test)
+notifications: true  # Desktop notifications on task completion/failure
 EOF
     echo -e "${GREEN}Created .agent/config.yml${NC}"
   fi
@@ -665,6 +694,7 @@ cmd_run() {
   append_log "$TASK_ID" "$TASK_TITLE" "$commit_hash"
   
   echo -e "${GREEN}✅ Completed:${NC} $TASK_ID: $TASK_TITLE"
+  notify "$TASK_ID complete"
   
   # Log to CTO task-log if available
   if [ -x "$HOME/clawd/scripts/task-log.sh" ]; then
@@ -725,6 +755,7 @@ cmd_done() {
   append_log "$TASK_ID" "$TASK_TITLE" "$commit_hash"
   
   echo -e "${GREEN}✅ Completed:${NC} $TASK_ID: $TASK_TITLE"
+  notify "$TASK_ID complete"
   
   # Log to CTO task-log if available
   if [ -x "$HOME/clawd/scripts/task-log.sh" ]; then
@@ -955,6 +986,7 @@ cmd_loop() {
       
       if [ "$failures" -ge "$max_failures" ]; then
         echo -e "${RED}Too many failures ($failures). Stopping loop.${NC}"
+        notify "$TASK_ID failed" "next-task ⚠️"
         echo ""
         echo -e "${CYAN}Next steps:${NC}"
         echo -e "  ${BOLD}next skip${NC}    — Skip this task and continue"
@@ -976,6 +1008,7 @@ cmd_loop() {
         echo -e "${RED}❌ Validation failed${NC}"
         if [ "$failures" -ge "$max_failures" ]; then
           echo -e "${RED}Too many failures. Stopping loop.${NC}"
+          notify "$TASK_ID validation failed" "next-task ⚠️"
           break
         fi
         echo -e "${YELLOW}Retrying... (failure $failures/$max_failures)${NC}"
@@ -992,6 +1025,7 @@ cmd_loop() {
     append_log "$TASK_ID" "$TASK_TITLE" "$commit_hash"
     
     echo -e "${GREEN}✅ Completed:${NC} $TASK_ID: $TASK_TITLE"
+    notify "$TASK_ID complete"
     
     # Log to CTO task-log if available
     if [ -x "$HOME/clawd/scripts/task-log.sh" ]; then
