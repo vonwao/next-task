@@ -398,6 +398,12 @@ run_agent() {
       cat ".agent/guardrails.md" >> "$TEMP_PROMPT"
       echo -e "\n---\n" >> "$TEMP_PROMPT"
     fi
+    if [ -f "$PROJECT_DIR/SPRINT.md" ]; then
+      echo "## Sprint Context" >> "$TEMP_PROMPT"
+      echo "" >> "$TEMP_PROMPT"
+      cat "$PROJECT_DIR/SPRINT.md" >> "$TEMP_PROMPT"
+      echo -e "\n---\n" >> "$TEMP_PROMPT"
+    fi
     echo "$prompt" >> "$TEMP_PROMPT"
     
     echo -e "${MAGENTA}▶ Running Codex (non-interactive)${NC}"
@@ -418,14 +424,23 @@ run_agent() {
       CREATED_SYMLINK=true
     fi
     
-    # Prepend guardrails to prompt if exists
+    # Prepend guardrails + sprint context to prompt if they exist
     local full_prompt="$prompt"
+    if [ -f "$PROJECT_DIR/SPRINT.md" ]; then
+      full_prompt="## Sprint Context
+
+$(cat "$PROJECT_DIR/SPRINT.md")
+
+---
+
+$full_prompt"
+    fi
     if [ -f ".agent/guardrails.md" ]; then
       full_prompt="$(cat .agent/guardrails.md)
 
 ---
 
-$prompt"
+$full_prompt"
     fi
     
     echo -e "${MAGENTA}▶ Running Claude Code (non-interactive)${NC}"
