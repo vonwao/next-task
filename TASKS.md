@@ -104,7 +104,7 @@ The prompt order should be:
 - task title + description + spec + artifacts + commit hint (existing)
 - PROGRESS.md tail (T5 will add this)
 
-### T5: Inject PROGRESS.md tail into prompts @claude
+### T5: Inject PROGRESS.md tail into prompts @claude ✅ (done: 2026-02-18, 9f8d9b5)
 **Depends:** T4
 **Artifacts:** src/next (modified)
 **Commit:** `feat: inject progress memory into prompts`

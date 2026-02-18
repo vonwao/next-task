@@ -8,3 +8,4 @@ Completion history for next-task
 
 ## 2026-02-18
 - **T4**: Inject SPRINT.md into prompts ✅ `5794050` @ 2026-02-18 15:13
+- **T5**: Inject PROGRESS.md tail into prompts ✅ `9f8d9b5` @ 2026-02-18 15:26

@@ -24,6 +24,7 @@ AGENT_FILE="$PROJECT_DIR/AGENT.md"
 CONFIG_FILE="$PROJECT_DIR/.agent/config.yml"
 STATE_FILE="$PROJECT_DIR/.agent/state.json"
 LOG_FILE="$PROJECT_DIR/LOG.md"
+PROGRESS_FILE="$PROJECT_DIR/PROGRESS.md"
 
 # Default config
 DEFAULT_AGENT="codex"
@@ -172,6 +173,47 @@ append_log() {
   else
     echo "- **$task_id**: $task_title ✅ @ $timestamp" >> "$LOG_FILE"
   fi
+}
+
+#######################################
+# PROGRESS.md Management
+#######################################
+
+# Append a structured progress block to PROGRESS.md
+# Usage: append_progress <task_id> <task_title> <agent> <validate_result> <commit_hash> <result> [failure_reason]
+append_progress() {
+  local task_id="$1"
+  local task_title="$2"
+  local agent="$3"
+  local validate_result="$4"   # passed, failed, skipped
+  local commit_hash="$5"
+  local result="$6"            # completed, failed, skipped, retried
+  local failure_reason="$7"
+  local timestamp=$(date '+%Y-%m-%d %H:%M')
+
+  # Create PROGRESS.md if it doesn't exist
+  if [ ! -f "$PROGRESS_FILE" ]; then
+    echo "# Progress Log" > "$PROGRESS_FILE"
+    echo "" >> "$PROGRESS_FILE"
+    echo "Iteration memory for $PROJECT_NAME." >> "$PROGRESS_FILE"
+  fi
+
+  # Build and append the block
+  local block="
+---
+**[$task_id]** $task_title — $timestamp
+Agent: $agent | Validate: $validate_result | Commit: ${commit_hash:-none}
+Result: $result"
+
+  if [ -n "$failure_reason" ]; then
+    block="$block
+Notes: $failure_reason"
+  fi
+
+  block="$block
+---"
+
+  echo "$block" >> "$PROGRESS_FILE"
 }
 
 #######################################
@@ -624,7 +666,14 @@ EOF
     echo "Completion history for $PROJECT_NAME" >> "$LOG_FILE"
     echo -e "${GREEN}Created LOG.md${NC}"
   fi
-  
+
+  if [ ! -f "$PROGRESS_FILE" ]; then
+    echo "# Progress Log" > "$PROGRESS_FILE"
+    echo "" >> "$PROGRESS_FILE"
+    echo "Iteration memory for $PROJECT_NAME." >> "$PROGRESS_FILE"
+    echo -e "${GREEN}Created PROGRESS.md${NC}"
+  fi
+
   echo -e "${BLUE}Project initialized for next-task v2${NC}"
 }
 
@@ -705,18 +754,24 @@ cmd_run() {
     if ! eval "$VALIDATE_CMD"; then
       echo -e "${RED}❌ Validation failed${NC}"
       echo -e "${DIM}Fix the issues and run 'next done' to complete, or 'next skip' to skip.${NC}"
+      append_progress "$TASK_ID" "$TASK_TITLE" "$TASK_AGENT" "failed" "$commit_hash" "failed" "Validation failed"
       return 1
     fi
     echo -e "${GREEN}✅ Validation passed${NC}"
   fi
-  
+
+  # Determine validation result for progress log
+  local validate_result="skipped"
+  [ -n "$VALIDATE_CMD" ] && validate_result="passed"
+
   # Auto-mark done
   echo ""
   echo -e "${BLUE}Marking task complete...${NC}"
   mark_task_done "$TASK_ID" "$commit_hash"
   mark_done_in_tasks "$TASK_ID" "$commit_hash"
   append_log "$TASK_ID" "$TASK_TITLE" "$commit_hash"
-  
+  append_progress "$TASK_ID" "$TASK_TITLE" "$TASK_AGENT" "$validate_result" "$commit_hash" "completed"
+
   echo -e "${GREEN}✅ Completed:${NC} $TASK_ID: $TASK_TITLE"
   notify "$TASK_ID complete"
   
@@ -773,36 +828,42 @@ cmd_done() {
     commit_hash=$(git rev-parse --short HEAD 2>/dev/null || echo "")
   fi
   
+  # Determine validation result for progress log
+  local validate_result="skipped"
+  [ -n "$VALIDATE_CMD" ] && validate_result="passed"
+
   # Mark done
   mark_task_done "$TASK_ID" "$commit_hash"
   mark_done_in_tasks "$TASK_ID" "$commit_hash"
   append_log "$TASK_ID" "$TASK_TITLE" "$commit_hash"
-  
+  append_progress "$TASK_ID" "$TASK_TITLE" "$TASK_AGENT" "$validate_result" "$commit_hash" "completed"
+
   echo -e "${GREEN}✅ Completed:${NC} $TASK_ID: $TASK_TITLE"
   notify "$TASK_ID complete"
-  
+
   # Log to CTO task-log if available
   if [ -x "$HOME/clawd/scripts/task-log.sh" ]; then
     "$HOME/clawd/scripts/task-log.sh" "$PROJECT_NAME" "$TASK_TITLE" done "next-task,$TASK_AGENT" "$commit_hash" 2>/dev/null && \
       echo -e "${CYAN}📝 Logged to task-log${NC}"
   fi
-  
+
   echo ""
   show_status
 }
 
 cmd_skip() {
   init_state
-  
+
   local in_progress=$(get_in_progress_id)
   if [ -z "$in_progress" ]; then
     echo -e "${YELLOW}No task in progress to skip${NC}"
     return 1
   fi
-  
+
   parse_task "$in_progress"
+  append_progress "$TASK_ID" "$TASK_TITLE" "$TASK_AGENT" "skipped" "" "skipped"
   clear_in_progress
-  
+
   echo -e "${YELLOW}Skipped:${NC} $TASK_ID: $TASK_TITLE"
   echo "Task is still in TASKS.md, will be picked up again when ready."
   echo ""
@@ -843,12 +904,13 @@ cmd_retry() {
   fi
   
   parse_task "$in_progress"
+  append_progress "$TASK_ID" "$TASK_TITLE" "$TASK_AGENT" "skipped" "" "retried"
   echo -e "${CYAN}Retrying:${NC} $TASK_ID: $TASK_TITLE"
   echo ""
-  
+
   # Clear in-progress so cmd_run picks it up fresh
   clear_in_progress
-  
+
   # Run the task
   cmd_run
 }
@@ -993,6 +1055,7 @@ cmd_loop() {
     # Check if agent failed (non-zero exit, no commits, no changes)
     if [ "$agent_exit" -ne 0 ] && [ -z "$commit_hash" ]; then
       failures=$((failures + 1))
+      append_progress "$TASK_ID" "$TASK_TITLE" "$TASK_AGENT" "skipped" "$commit_hash" "failed" "Agent exit code: $agent_exit"
       echo ""
       echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
       echo -e "${RED}⚠️  Task failed (exit code: $agent_exit)${NC}"
@@ -1007,7 +1070,7 @@ cmd_loop() {
       echo -e "${DIM}  • git status (any uncommitted changes?)${NC}"
       echo -e "${DIM}  • git diff (what did the agent do?)${NC}"
       echo ""
-      
+
       if [ "$failures" -ge "$max_failures" ]; then
         echo -e "${RED}Too many failures ($failures). Stopping loop.${NC}"
         notify "$TASK_ID failed" "next-task ⚠️"
@@ -1018,18 +1081,19 @@ cmd_loop() {
         echo -e "  ${BOLD}next run${NC}     — Try again manually"
         break
       fi
-      
+
       echo -e "${YELLOW}Retrying... (failure $failures/$max_failures)${NC}"
       sleep 2
       continue
     fi
-    
+
     # Run validation if configured
     if [ -n "$VALIDATE_CMD" ]; then
       echo -e "${BLUE}Validating:${NC} $VALIDATE_CMD"
       if ! eval "$VALIDATE_CMD"; then
         failures=$((failures + 1))
         echo -e "${RED}❌ Validation failed${NC}"
+        append_progress "$TASK_ID" "$TASK_TITLE" "$TASK_AGENT" "failed" "$commit_hash" "failed" "Validation failed"
         if [ "$failures" -ge "$max_failures" ]; then
           echo -e "${RED}Too many failures. Stopping loop.${NC}"
           notify "$TASK_ID validation failed" "next-task ⚠️"
@@ -1041,13 +1105,18 @@ cmd_loop() {
       fi
       echo -e "${GREEN}✅ Validation passed${NC}"
     fi
-    
+
+    # Determine validation result for progress log
+    local validate_result="skipped"
+    [ -n "$VALIDATE_CMD" ] && validate_result="passed"
+
     # Success - mark done
     failures=0
     mark_task_done "$TASK_ID" "$commit_hash"
     mark_done_in_tasks "$TASK_ID" "$commit_hash"
     append_log "$TASK_ID" "$TASK_TITLE" "$commit_hash"
-    
+    append_progress "$TASK_ID" "$TASK_TITLE" "$TASK_AGENT" "$validate_result" "$commit_hash" "completed"
+
     echo -e "${GREEN}✅ Completed:${NC} $TASK_ID: $TASK_TITLE"
     notify "$TASK_ID complete"
     
