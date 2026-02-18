@@ -93,7 +93,7 @@ In `build_prompt()`, if `SPRINT.md` exists at the project root, include its cont
 in the prompt between the guardrails section and the task section.
 
 Implementation:
-1. After the guardrails injection block in `build_prompt()`, add a similar block for SPRINT.md
+1. Add SPRINT context injection in the prompt assembly path (`build_prompt()` and/or `run_agent()`), matching current architecture
 2. Use a `## Sprint Context` header to separate it from the task
 3. If SPRINT.md doesn't exist, skip silently (backward compatible)
 
@@ -139,7 +139,8 @@ Implementation:
    - Brief failure reason (if applicable)
 2. Call `append_progress()` in `cmd_run()` after task completion or failure
 3. Call `append_progress()` in `cmd_loop()` after each iteration
-4. Create PROGRESS.md with a minimal header if it doesn't exist yet
+4. Call `append_progress()` in manual task-state commands: `cmd_done()`, `cmd_skip()`, and `cmd_retry()`
+5. Create PROGRESS.md with a minimal header if it doesn't exist yet
 
 Block format:
 ```
