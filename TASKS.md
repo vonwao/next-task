@@ -84,7 +84,7 @@ Commit: {{COMMIT_PREFIX}}: {{TITLE_LOWER}}
 > Goal: Make loop mode smart over time without changing the queue model.
 > See SPRINT.md for full acceptance criteria.
 
-### T4: Inject SPRINT.md into prompts @claude
+### T4: Inject SPRINT.md into prompts @claude ✅ (done: 2026-02-18, 5794050)
 **Depends:** (none)
 **Artifacts:** src/next (modified)
 **Commit:** `feat: inject sprint context into prompts`

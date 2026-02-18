@@ -373,7 +373,16 @@ Commit your changes with message: \`$TASK_COMMIT\`"
 ## Parallelization
 This task can be parallelized. Use sub-agents for independent pieces of work."
   fi
-  
+
+  if [ -f "$PROJECT_DIR/PROGRESS.md" ]; then
+    prompt="$prompt
+
+## Progress Memory
+$(tail -n 50 "$PROJECT_DIR/PROGRESS.md")
+
+Review the progress log above for context from previous iterations. If you learn something useful, append it to PROGRESS.md."
+  fi
+
   echo "$prompt"
 }
 
