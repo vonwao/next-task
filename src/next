@@ -25,6 +25,7 @@ CONFIG_FILE="$PROJECT_DIR/.agent/config.yml"
 STATE_FILE="$PROJECT_DIR/.agent/state.json"
 LOG_FILE="$PROJECT_DIR/LOG.md"
 PROGRESS_FILE="$PROJECT_DIR/PROGRESS.md"
+SPRINT_FILE="$PROJECT_DIR/SPRINT.md"
 
 # Default config
 DEFAULT_AGENT="codex"
@@ -196,6 +197,12 @@ append_progress() {
     echo "# Progress Log" > "$PROGRESS_FILE"
     echo "" >> "$PROGRESS_FILE"
     echo "Iteration memory for $PROJECT_NAME." >> "$PROGRESS_FILE"
+    echo "" >> "$PROGRESS_FILE"
+    echo "## Current State" >> "$PROGRESS_FILE"
+    echo "" >> "$PROGRESS_FILE"
+    echo "No tasks completed yet." >> "$PROGRESS_FILE"
+    echo "" >> "$PROGRESS_FILE"
+    echo "<!-- Runner-appended progress blocks below -->" >> "$PROGRESS_FILE"
   fi
 
   # Build and append the block
@@ -667,10 +674,38 @@ EOF
     echo -e "${GREEN}Created LOG.md${NC}"
   fi
 
+  if [ ! -f "$SPRINT_FILE" ]; then
+    cat > "$SPRINT_FILE" << 'EOF'
+# Sprint: [Sprint Name]
+
+## Goal
+
+Describe the sprint goal here.
+
+## Non-goals
+
+- Things explicitly out of scope for this sprint
+
+## Acceptance Criteria
+
+1. First criterion
+2. Second criterion
+EOF
+    echo -e "${GREEN}Created SPRINT.md${NC}"
+  fi
+
   if [ ! -f "$PROGRESS_FILE" ]; then
-    echo "# Progress Log" > "$PROGRESS_FILE"
-    echo "" >> "$PROGRESS_FILE"
-    echo "Iteration memory for $PROJECT_NAME." >> "$PROGRESS_FILE"
+    cat > "$PROGRESS_FILE" << EOF
+# Progress Log
+
+Iteration memory for $PROJECT_NAME.
+
+## Current State
+
+No tasks completed yet.
+
+<!-- Runner-appended progress blocks below -->
+EOF
     echo -e "${GREEN}Created PROGRESS.md${NC}"
   fi
 
