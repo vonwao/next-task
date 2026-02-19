@@ -4,9 +4,11 @@
     "T2",
     "T3",
     "T4",
-    "T5"
+    "T5",
+    "T6",
+    "T7"
   ],
-  "inProgress": "T6",
+  "inProgress": null,
   "log": [
     {
       "taskId": "T4",
@@ -17,6 +19,16 @@
       "taskId": "T5",
       "timestamp": "2026-02-18T20:26:52Z",
       "commit": "9f8d9b5"
+    },
+    {
+      "taskId": "T6",
+      "timestamp": "2026-02-18T20:29:07Z",
+      "commit": "ffc643d"
+    },
+    {
+      "taskId": "T7",
+      "timestamp": "2026-02-18T20:30:21Z",
+      "commit": "28f59a0"
     }
   ]
 }

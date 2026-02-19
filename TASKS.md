@@ -120,7 +120,7 @@ Implementation:
 
 Why tail and not full file: PROGRESS.md grows over time. Tailing keeps prompt size bounded.
 
-### T6: Runner-appended progress blocks @claude
+### T6: Runner-appended progress blocks @claude ✅ (done: 2026-02-18, ffc643d)
 **Depends:** T5
 **Artifacts:** src/next (modified)
 **Commit:** `feat: append structured progress blocks after task attempts`
@@ -151,7 +151,7 @@ Result: completed
 ---
 ```
 
-### T7: Update next init to create SPRINT.md and PROGRESS.md @claude
+### T7: Update next init to create SPRINT.md and PROGRESS.md @claude ✅ (done: 2026-02-18, 28f59a0)
 **Depends:** T6
 **Artifacts:** src/next (modified)
 **Commit:** `feat: init creates sprint and progress templates`
