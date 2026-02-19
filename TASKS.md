@@ -170,3 +170,27 @@ Implementation:
    - "Current State" section
    - Marker comment for runner-appended blocks
 3. Follow the same pattern as existing init (check exists, create, print green message)
+
+---
+
+## Verification: Post-Sprint 08
+
+### T8: Verify progress blocks work end-to-end @claude
+**Depends:** (none)
+**Artifacts:** PROGRESS.md (appended), AGENT.md (minor update)
+**Commit:** `chore: update AGENT.md with sprint 08 conventions`
+
+This is a verification task. Do two things:
+
+1. Update AGENT.md to document the new Sprint 08 conventions:
+   - Add SPRINT.md to the "Structure" section
+   - Add PROGRESS.md to the "Structure" section
+   - Mention the prompt context order (AGENT → guardrails → SPRINT → task → PROGRESS tail)
+   - Keep it concise — 2-3 lines max per addition
+
+2. After making the change, verify that PROGRESS.md exists at the project root.
+   If it exists, do NOT modify it — the runner will append a progress block automatically after this task completes.
+
+This task succeeds if:
+- AGENT.md is updated with the new file conventions
+- The runner appends a structured progress block to PROGRESS.md (this happens automatically via the runner, not by the agent)
