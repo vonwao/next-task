@@ -11,3 +11,4 @@ Completion history for next-task
 - **T5**: Inject PROGRESS.md tail into prompts ✅ `9f8d9b5` @ 2026-02-18 15:26
 - **T6**: Runner-appended progress blocks ✅ `ffc643d` @ 2026-02-18 15:29
 - **T7**: Update next init to create SPRINT.md and PROGRESS.md ✅ `28f59a0` @ 2026-02-18 15:30
+- **T8**: Verify progress blocks work end-to-end ✅ `e12c67a` @ 2026-02-18 23:55

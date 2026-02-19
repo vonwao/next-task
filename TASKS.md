@@ -175,7 +175,7 @@ Implementation:
 
 ## Verification: Post-Sprint 08
 
-### T8: Verify progress blocks work end-to-end @claude
+### T8: Verify progress blocks work end-to-end @claude ✅ (done: 2026-02-18, e12c67a)
 **Depends:** (none)
 **Artifacts:** PROGRESS.md (appended), AGENT.md (minor update)
 **Commit:** `chore: update AGENT.md with sprint 08 conventions`

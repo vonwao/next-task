@@ -11,3 +11,9 @@
 - Starting T4-T7: prompt injection + runner-written progress
 
 <!-- Runner appends blocks below -->
+
+---
+**[T8]** Verify progress blocks work end-to-end — 2026-02-18 23:55
+Agent: claude | Validate: skipped | Commit: e12c67a
+Result: completed
+---

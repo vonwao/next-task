@@ -12,6 +12,13 @@ src/next          # Main script (bash)
 docs/             # Docsify documentation
 BACKLOG.md        # Feature backlog
 TASKS.md          # Current sprint tasks
+SPRINT.md         # Current sprint scope (injected into prompt context)
+PROGRESS.md       # Cross-iteration memory (runner appends blocks after each task)
+```
+
+## Prompt Context Order
+```
+AGENT.md → guardrails.md → SPRINT.md → task prompt → tail(PROGRESS.md)
 ```
 
 ## Commands to Verify
