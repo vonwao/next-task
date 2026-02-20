@@ -1314,6 +1314,86 @@ Describe the task implementation here."
   echo -e "${DIM}   Commit: $commit_msg${NC}"
 }
 
+cmd_sprint_status() {
+  init_state
+
+  # No active sprint
+  if [ ! -f "$SPRINT_FILE" ]; then
+    echo -e "${YELLOW}No active sprint.${NC} Run: next sprint-new \"Title\""
+    return 0
+  fi
+
+  # Sprint title from first heading
+  local sprint_title
+  sprint_title=$(grep '^# ' "$SPRINT_FILE" | head -1 | sed 's/^# //')
+
+  # Count tasks: done / remaining (not done, not blocked) / blocked
+  local done_ids
+  done_ids=$(get_done_ids)
+  local all_ids
+  all_ids=$(get_all_task_ids)
+
+  local done_count=0
+  local remaining_count=0
+  local blocked_count=0
+
+  for task_id in $all_ids; do
+    if echo "$done_ids" | grep -q "^${task_id}$"; then
+      done_count=$((done_count + 1))
+    else
+      parse_task "$task_id"
+      if echo "$TASK_FLAGS" | grep -q "manual"; then
+        continue
+      fi
+      if deps_met "$TASK_DEPENDS"; then
+        remaining_count=$((remaining_count + 1))
+      else
+        blocked_count=$((blocked_count + 1))
+      fi
+    fi
+  done
+
+  # Next ready task
+  local next_task
+  next_task=$(find_next_task)
+  local next_label="(none)"
+  if [ -n "$next_task" ]; then
+    parse_task "$next_task"
+    next_label="$TASK_ID: $TASK_TITLE"
+  fi
+
+  # Last completed task from log[]
+  local last_label="(none)"
+  local last_info
+  last_info=$(python3 -c "
+import json
+try:
+    with open('$STATE_FILE') as f:
+        state = json.load(f)
+    log = state.get('log', [])
+    if log:
+        entry = log[-1]
+        print(entry.get('taskId','') + '|' + entry.get('timestamp',''))
+except:
+    pass
+" 2>/dev/null)
+
+  if [ -n "$last_info" ]; then
+    local last_id="${last_info%%|*}"
+    local last_ts="${last_info##*|}"
+    local last_date="${last_ts%%T*}"
+    if [ -n "$last_id" ]; then
+      parse_task "$last_id" 2>/dev/null || true
+      last_label="$last_id: $TASK_TITLE ($last_date)"
+    fi
+  fi
+
+  echo -e "${BOLD}Sprint:${NC} $sprint_title"
+  echo -e "${BOLD}Tasks: ${NC} $done_count done · $remaining_count remaining · $blocked_count blocked"
+  echo -e "${BOLD}Next:  ${NC} $next_label"
+  echo -e "${BOLD}Last:  ${NC} $last_label"
+}
+
 cmd_sprint_done() {
   local sprint_dir="$PROJECT_DIR/sprints"
 
@@ -1594,8 +1674,9 @@ cmd_help() {
   echo "  log          Show LOG.md"
   echo "  reset        Clear in-progress state"
   echo "  init         Initialize project"
-  echo "  sprint-done  📦 Archive SPRINT.md → sprints/sprint-NN.md"
-  echo "  sprint-new   🌱 Create a new SPRINT.md for the next sprint"
+  echo "  sprint-done    📦 Archive SPRINT.md → sprints/sprint-NN.md"
+  echo "  sprint-new     🌱 Create a new SPRINT.md for the next sprint"
+  echo "  sprint-status  📊 Show compact sprint overview"
   echo "  help         Show this help"
   echo ""
   echo "Examples:"
@@ -1608,6 +1689,7 @@ cmd_help() {
   echo "  next commit 'my message'      # Commit with custom message"
   echo "  next sprint-done              # Archive current sprint"
   echo "  next sprint-new \"My Sprint\"   # Start a new sprint"
+  echo "  next sprint-status            # Show sprint progress overview"
   echo ""
   echo "State is stored in .agent/state.json"
   echo "Completion log is in LOG.md"
@@ -1633,8 +1715,9 @@ case "${1:-run}" in
   loop)     cmd_loop "$2" "$3" ;;
   preview|p) cmd_preview ;;
   add|a)    shift; cmd_add "$@" ;;
-  sprint-done|sd) cmd_sprint_done ;;
-  sprint-new|sn)  shift; cmd_sprint_new "$@" ;;
+  sprint-done|sd)     cmd_sprint_done ;;
+  sprint-new|sn)      shift; cmd_sprint_new "$@" ;;
+  sprint-status|ss)   init_state; cmd_sprint_status ;;
   run|"")   cmd_run ;;
   help|--help|-h) cmd_help ;;
   *)
