@@ -1322,6 +1322,19 @@ cmd_sprint_done() {
     exit 1
   fi
 
+  # Read current sprintStartedAt (cutoff for filtering done tasks to this sprint)
+  init_state
+  local current_sprint_start
+  current_sprint_start=$(python3 -c "
+import json
+try:
+    with open('$STATE_FILE') as f:
+        state = json.load(f)
+    print(state.get('sprintStartedAt', ''))
+except:
+    print('')
+" 2>/dev/null)
+
   # Determine next archive slot
   mkdir -p "$sprint_dir"
   local next_num=1
@@ -1344,9 +1357,11 @@ cmd_sprint_done() {
   local py_script
   py_script=$(mktemp /tmp/next-archive-XXXXXX.py)
   cat > "$py_script" << 'PYEOF'
-import re, sys
+import re, sys, json
 
 tasks_file, archive_file, sprint_ref = sys.argv[1], sys.argv[2], sys.argv[3]
+state_file       = sys.argv[4] if len(sys.argv) > 4 else ''
+sprint_started_at = sys.argv[5] if len(sys.argv) > 5 else ''
 
 TASK_RE = re.compile(r'^### (T\d+):(.*)')
 H2_RE   = re.compile(r'^## ')
@@ -1451,12 +1466,27 @@ with open(archive_file, 'a') as f:
         if not b['lines'][-1].endswith('\n'):
             f.write('\n')
 
-print(','.join(b['id'] for b in done))
+# Filter reported IDs to current sprint using log[] timestamps
+if sprint_started_at and state_file:
+    try:
+        with open(state_file) as sf:
+            state = json.load(sf)
+        sprint_ids = {
+            e['taskId'] for e in state.get('log', [])
+            if e.get('timestamp', '') >= sprint_started_at
+        }
+        report_done = [b for b in done if b['id'] in sprint_ids]
+    except Exception:
+        report_done = done
+else:
+    report_done = done  # no sprintStartedAt → first sprint ever, include all
+
+print(','.join(b['id'] for b in report_done) if report_done else 'none')
 PYEOF
 
-  # Run the archiver
+  # Run the archiver (pass state file + sprint start for log[] filtering)
   local archive_result
-  archive_result=$(python3 "$py_script" "$TASKS_FILE" "$archive_path" "$sprint_ref" 2>&1)
+  archive_result=$(python3 "$py_script" "$TASKS_FILE" "$archive_path" "$sprint_ref" "$STATE_FILE" "$current_sprint_start" 2>&1)
   local py_exit=$?
   rm -f "$py_script"
 
@@ -1466,9 +1496,21 @@ PYEOF
     exit 1
   fi
 
-  # Commit: archive file + updated TASKS.md + remove SPRINT.md
+  # Record sprint boundary so next sprint-status/sprint-done can scope to this sprint
+  local new_sprint_start
+  new_sprint_start=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  python3 -c "
+import json
+with open('$STATE_FILE') as f:
+    state = json.load(f)
+state['sprintStartedAt'] = '$new_sprint_start'
+with open('$STATE_FILE', 'w') as f:
+    json.dump(state, f, indent=2)
+" 2>/dev/null
+
+  # Commit: archive file + updated TASKS.md + state (with new sprintStartedAt) + remove SPRINT.md
   if git rev-parse --git-dir > /dev/null 2>&1; then
-    git add "$archive_path" "$TASKS_FILE"
+    git add "$archive_path" "$TASKS_FILE" "$STATE_FILE"
     git rm "$SPRINT_FILE" > /dev/null 2>&1
     git commit -m "chore: archive sprint → $sprint_ref"
     echo -e "${GREEN}✅ Archived:${NC} SPRINT.md → $sprint_ref"
