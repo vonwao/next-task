@@ -1609,9 +1609,9 @@ with open('$STATE_FILE', 'w') as f:
     json.dump(state, f, indent=2)
 " 2>/dev/null
 
-  # Commit: archive file + updated TASKS.md + state (with new sprintStartedAt) + remove SPRINT.md
+  # Commit: archive file + updated TASKS.md + state + sweep any remaining tracking files + remove SPRINT.md
   if git rev-parse --git-dir > /dev/null 2>&1; then
-    git add "$archive_path" "$TASKS_FILE" "$STATE_FILE"
+    git add "$archive_path" "$TASKS_FILE" "$STATE_FILE" "$LOG_FILE" "$PROGRESS_FILE" 2>/dev/null
     git rm "$SPRINT_FILE" > /dev/null 2>&1
     git commit -m "chore: archive sprint → $sprint_ref"
     echo -e "${GREEN}✅ Archived:${NC} SPRINT.md → $sprint_ref"
