@@ -18,3 +18,4 @@ Completion history for next-task
 - **T10**: next sprint-status command ✅ `20b45fd` @ 2026-02-20
 - **T12**: Auto-commit tracking files after each task ✅ `cd8d4c5` @ 2026-02-20
 - **T13**: sprint-done sweeps uncommitted tracking files ✅ `1ee94b1` @ 2026-02-20
+- **T11**: Update next init for sprint support ✅ `6779763` @ 2026-02-20

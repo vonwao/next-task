@@ -71,7 +71,7 @@ Wire up in case statement: `sprint-status|ss) cmd_sprint_status ;;`
 
 ---
 
-### T11: Update next init for sprint support @codex
+### T11: Update next init for sprint support @codex ✅ (done: 2026-02-20, 6779763)
 **Depends:** T10
 **Artifacts:** src/next (modified)
 **Commit:** `feat: init creates sprints directory and mentions sprint commands`
