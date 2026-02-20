@@ -1322,7 +1322,7 @@ cmd_sprint_done() {
     exit 1
   fi
 
-  # Determine next archive number from existing sprints/sprint-NN.md files
+  # Determine next archive slot
   mkdir -p "$sprint_dir"
   local next_num=1
   while [ -f "$sprint_dir/sprint-$(printf '%02d' $next_num).md" ]; do
@@ -1331,40 +1331,154 @@ cmd_sprint_done() {
 
   local archive_name="sprint-$(printf '%02d' $next_num).md"
   local archive_path="$sprint_dir/$archive_name"
+  local sprint_ref="sprints/$archive_name"
 
-  # Pull sprint title from first heading for summary display
+  # Pull sprint title for display
   local sprint_title
   sprint_title=$(grep '^# ' "$SPRINT_FILE" | head -1 | sed 's/^# //')
 
-  # Collect completed task IDs from state to append to the archive
-  local done_ids=""
-  if [ -f "$STATE_FILE" ]; then
-    done_ids=$(python3 -c "
-import json
-with open('$STATE_FILE') as f:
-    state = json.load(f)
-ids = state.get('done', [])
-print(', '.join(ids) if ids else '')
-" 2>/dev/null)
-  fi
-
-  # Copy SPRINT.md to archive location, append task summary, then remove original
+  # Copy SPRINT.md to archive (Python will append task bodies to it)
   cp "$SPRINT_FILE" "$archive_path"
-  if [ -n "$done_ids" ]; then
-    printf '\n---\n\n## Completed Tasks\n\n%s\n' "$done_ids" >> "$archive_path"
+
+  # Write task archiver to temp file (single-quoted heredoc = no bash expansion inside)
+  local py_script
+  py_script=$(mktemp /tmp/next-archive-XXXXXX.py)
+  cat > "$py_script" << 'PYEOF'
+import re, sys
+
+tasks_file, archive_file, sprint_ref = sys.argv[1], sys.argv[2], sys.argv[3]
+
+TASK_RE = re.compile(r'^### (T\d+):(.*)')
+H2_RE   = re.compile(r'^## ')
+
+with open(tasks_file, 'r') as f:
+    lines = f.readlines()
+
+# Split into blocks — a new block starts at every '## ' or '### T<n>:' line
+blocks = []
+cur = {'kind': 'pre', 'id': None, 'done': False, 'title': None, 'lines': []}
+
+for line in lines:
+    tm = TASK_RE.match(line)
+    hm = H2_RE.match(line)
+    if tm:
+        blocks.append(cur)
+        rest = tm.group(2)
+        title_m = re.match(r'\s*(.*?)(?:\s+@\w+)?(?:\s+✅.*)?$', rest)
+        title = title_m.group(1).strip() if title_m else rest.strip()
+        cur = {'kind': 'task', 'id': tm.group(1), 'done': '✅' in line,
+               'title': title, 'lines': [line]}
+    elif hm:
+        blocks.append(cur)
+        cur = {'kind': 'section', 'id': None, 'done': False, 'title': None, 'lines': [line]}
+    else:
+        cur['lines'].append(line)
+
+blocks.append(cur)
+blocks = [b for b in blocks if b['lines']]
+
+done = [b for b in blocks if b['kind'] == 'task' and b['done']]
+kept = [b for b in blocks if not (b['kind'] == 'task' and b['done'])]
+
+if not done:
+    print('none')
+    sys.exit(0)
+
+# Build tombstone lines
+tombs = []
+for b in done:
+    fl = b['lines'][0].rstrip()
+    dm = re.search(r'✅(?:\s+\(done:\s*[^,]+,\s*(\w+)\))?', fl)
+    commit = dm.group(1) if dm and dm.group(1) else ''
+    t = f'- {b["id"]} ✅ {b["title"]}'
+    if commit:
+        t += f' `{commit}`'
+    t += f' → {sprint_ref}\n'
+    tombs.append(t)
+
+# Find or create ## Archived Tasks section
+arch_idx = next(
+    (i for i, b in enumerate(kept)
+     if b['kind'] == 'section' and b['lines']
+     and b['lines'][0].startswith('## Archived Tasks')),
+    None
+)
+
+if arch_idx is not None:
+    kept[arch_idx]['lines'].extend(tombs)
+else:
+    # Insert before the first active section (or at end of preamble)
+    insert_at = next(
+        (i for i, b in enumerate(kept) if b['kind'] == 'section'),
+        len(kept)
+    )
+    new_sec = {'kind': 'section', 'id': None, 'done': False, 'title': None,
+               'lines': ['## Archived Tasks\n'] + tombs + ['\n']}
+    kept.insert(insert_at, new_sec)
+
+# Drop section headers that are now empty shells:
+# a section is a ghost if its block has only the header line (plus blank/whitespace lines)
+# AND no task blocks follow it before the next section.
+# Sections with non-blank content lines (like ## Notes) are always kept.
+def is_content_line(line):
+    return line.strip() and not line.startswith('## ')
+
+def has_tasks_after(kept, idx):
+    for b in kept[idx+1:]:
+        if b['kind'] == 'section':
+            return False
+        if b['kind'] == 'task':
+            return True
+    return False
+
+kept = [
+    b for i, b in enumerate(kept)
+    if b['kind'] != 'section'
+    or b['lines'][0].startswith('## Archived Tasks')
+    or any(is_content_line(l) for l in b['lines'][1:])  # has real content → keep
+    or has_tasks_after(kept, i)                          # has tasks below → keep
+]
+
+# Write updated TASKS.md (done task bodies removed, tombstones added)
+with open(tasks_file, 'w') as f:
+    f.write(''.join(''.join(b['lines']) for b in kept))
+
+# Append full done task bodies to sprint archive
+with open(archive_file, 'a') as f:
+    f.write('\n---\n\n## Completed Task Details\n\n')
+    for b in done:
+        f.write(''.join(b['lines']))
+        if not b['lines'][-1].endswith('\n'):
+            f.write('\n')
+
+print(','.join(b['id'] for b in done))
+PYEOF
+
+  # Run the archiver
+  local archive_result
+  archive_result=$(python3 "$py_script" "$TASKS_FILE" "$archive_path" "$sprint_ref" 2>&1)
+  local py_exit=$?
+  rm -f "$py_script"
+
+  if [ $py_exit -ne 0 ]; then
+    echo -e "${RED}Error processing TASKS.md:${NC} $archive_result"
+    rm -f "$archive_path"
+    exit 1
   fi
 
-  # Use git to stage archive and remove original
+  # Commit: archive file + updated TASKS.md + remove SPRINT.md
   if git rev-parse --git-dir > /dev/null 2>&1; then
-    git add "$archive_path"
-    git rm "$SPRINT_FILE" > /dev/null
-    git commit -m "chore: archive sprint → sprints/$archive_name"
-    echo -e "${GREEN}✅ Archived:${NC} SPRINT.md → sprints/$archive_name"
+    git add "$archive_path" "$TASKS_FILE"
+    git rm "$SPRINT_FILE" > /dev/null 2>&1
+    git commit -m "chore: archive sprint → $sprint_ref"
+    echo -e "${GREEN}✅ Archived:${NC} SPRINT.md → $sprint_ref"
     echo -e "${DIM}   \"$sprint_title\"${NC}"
-    [ -n "$done_ids" ] && echo -e "${DIM}   Tasks: $done_ids${NC}"
+    if [ "$archive_result" != "none" ] && [ -n "$archive_result" ]; then
+      echo -e "${DIM}   Tasks stripped from TASKS.md: $archive_result${NC}"
+    fi
   else
     rm "$SPRINT_FILE"
-    echo -e "${GREEN}✅ Archived:${NC} SPRINT.md → sprints/$archive_name (no git commit — not a git repo)"
+    echo -e "${GREEN}✅ Archived:${NC} SPRINT.md → $sprint_ref (no git commit — not a git repo)"
   fi
 
   echo ""
