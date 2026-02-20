@@ -35,3 +35,9 @@ Result: completed
 Agent: claude | Validate: skipped | Commit: cd8d4c5
 Result: completed
 ---
+
+---
+**[T13]** sprint-done sweeps uncommitted tracking files — 2026-02-20
+Agent: codex | Validate: skipped | Commit: 1ee94b1
+Result: completed
+---

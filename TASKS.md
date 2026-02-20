@@ -129,7 +129,7 @@ Do NOT add this to `cmd_loop()` — it calls `cmd_run()` internally so it gets i
 
 ---
 
-### T13: sprint-done sweeps uncommitted tracking files @codex
+### T13: sprint-done sweeps uncommitted tracking files @codex ✅ (done: 2026-02-20, 1ee94b1)
 **Depends:** T12
 **Artifacts:** src/next (modified)
 **Commit:** `fix: sprint-done commits all tracking files`
