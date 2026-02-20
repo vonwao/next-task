@@ -24,7 +24,7 @@ Dogfooding: using next-task to build next-task.
 
 ## Sprint 09: Sprint Lifecycle Commands
 
-### T9: Scope sprint-done task list to current sprint @claude
+### T9: Scope sprint-done task list to current sprint @claude ✅ (done: 2026-02-20, f963680)
 **Depends:** T8
 **Artifacts:** src/next (modified)
 **Commit:** `fix: sprint-done only lists tasks completed in current sprint`

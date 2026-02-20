@@ -17,3 +17,9 @@
 Agent: claude | Validate: skipped | Commit: e12c67a
 Result: completed
 ---
+
+---
+**[T9]** Scope sprint-done task list to current sprint — 2026-02-20
+Agent: claude | Validate: skipped | Commit: f963680
+Result: completed
+---

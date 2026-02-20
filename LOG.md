@@ -12,3 +12,6 @@ Completion history for next-task
 - **T6**: Runner-appended progress blocks ✅ `ffc643d` @ 2026-02-18 15:29
 - **T7**: Update next init to create SPRINT.md and PROGRESS.md ✅ `28f59a0` @ 2026-02-18 15:30
 - **T8**: Verify progress blocks work end-to-end ✅ `e12c67a` @ 2026-02-18 23:55
+
+## 2026-02-20
+- **T9**: Scope sprint-done task list to current sprint ✅ `f963680` @ 2026-02-20
