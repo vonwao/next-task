@@ -36,3 +36,9 @@ Just added manually (this session, not via task loop):
 - `src/next` — entire CLI, one bash script (~1450 lines)
 - `.agent/state.json` — tracks done[], inProgress, log[] with timestamps
 - `sprints/` — archive directory, created by sprint-done
+
+---
+
+## Completed Tasks
+
+T1, T2, T3, T4, T5, T6, T7, T8
