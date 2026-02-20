@@ -45,7 +45,7 @@ State update helper already exists (`update_state` or similar python3 inline) â€
 
 ---
 
-### T10: next sprint-status command @claude
+### T10: next sprint-status command @claude âœ… (done: 2026-02-20, 20b45fd)
 **Depends:** T9
 **Artifacts:** src/next (modified)
 **Commit:** `feat: next sprint-status command`
