@@ -1336,14 +1336,34 @@ cmd_sprint_done() {
   local sprint_title
   sprint_title=$(grep '^# ' "$SPRINT_FILE" | head -1 | sed 's/^# //')
 
-  # Use git mv so git tracks it as a rename
+  # Collect completed task IDs from state to append to the archive
+  local done_ids=""
+  if [ -f "$STATE_FILE" ]; then
+    done_ids=$(python3 -c "
+import json
+with open('$STATE_FILE') as f:
+    state = json.load(f)
+ids = state.get('done', [])
+print(', '.join(ids) if ids else '')
+" 2>/dev/null)
+  fi
+
+  # Copy SPRINT.md to archive location, append task summary, then remove original
+  cp "$SPRINT_FILE" "$archive_path"
+  if [ -n "$done_ids" ]; then
+    printf '\n---\n\n## Completed Tasks\n\n%s\n' "$done_ids" >> "$archive_path"
+  fi
+
+  # Use git to stage archive and remove original
   if git rev-parse --git-dir > /dev/null 2>&1; then
-    git mv "$SPRINT_FILE" "$archive_path"
+    git add "$archive_path"
+    git rm "$SPRINT_FILE" > /dev/null
     git commit -m "chore: archive sprint → sprints/$archive_name"
     echo -e "${GREEN}✅ Archived:${NC} SPRINT.md → sprints/$archive_name"
     echo -e "${DIM}   \"$sprint_title\"${NC}"
+    [ -n "$done_ids" ] && echo -e "${DIM}   Tasks: $done_ids${NC}"
   else
-    mv "$SPRINT_FILE" "$archive_path"
+    rm "$SPRINT_FILE"
     echo -e "${GREEN}✅ Archived:${NC} SPRINT.md → sprints/$archive_name (no git commit — not a git repo)"
   fi
 
@@ -1368,17 +1388,8 @@ cmd_sprint_new() {
   local today
   today=$(date '+%Y-%m-%d')
 
-  # Determine sprint number for the header
-  local sprint_dir="$PROJECT_DIR/sprints"
-  local sprint_num=1
-  if [ -d "$sprint_dir" ]; then
-    while [ -f "$sprint_dir/sprint-$(printf '%02d' $sprint_num).md" ]; do
-      sprint_num=$((sprint_num + 1))
-    done
-  fi
-
   cat > "$SPRINT_FILE" << EOF
-# Sprint $sprint_num — $sprint_title
+# $sprint_title
 
 **Date:** $today
 
@@ -1404,7 +1415,7 @@ What was just completed? What does the app look like now?
 Any key decisions for this sprint.
 EOF
 
-  echo -e "${GREEN}✅ Created SPRINT.md${NC} — Sprint $sprint_num: $sprint_title"
+  echo -e "${GREEN}✅ Created SPRINT.md${NC} — $sprint_title"
   echo -e "${DIM}   Edit SPRINT.md to fill in the goal and context.${NC}"
 }
 
