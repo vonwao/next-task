@@ -807,15 +807,22 @@ cmd_run() {
   append_log "$TASK_ID" "$TASK_TITLE" "$commit_hash"
   append_progress "$TASK_ID" "$TASK_TITLE" "$TASK_AGENT" "$validate_result" "$commit_hash" "completed"
 
+  # Commit tracking files (state, tasks marker, log, progress)
+  if git rev-parse --git-dir > /dev/null 2>&1; then
+    git add "$STATE_FILE" "$TASKS_FILE" "$LOG_FILE" "$PROGRESS_FILE" 2>/dev/null
+    git diff --staged --quiet 2>/dev/null || \
+      git commit -m "chore: tracking [${TASK_ID}]" --no-verify 2>/dev/null
+  fi
+
   echo -e "${GREEN}✅ Completed:${NC} $TASK_ID: $TASK_TITLE"
   notify "$TASK_ID complete"
-  
+
   # Log to CTO task-log if available
   if [ -x "$HOME/clawd/scripts/task-log.sh" ]; then
     "$HOME/clawd/scripts/task-log.sh" "$PROJECT_NAME" "$TASK_TITLE" done "next-task,$TASK_AGENT" "$commit_hash" 2>/dev/null && \
       echo -e "${CYAN}📝 Logged to task-log${NC}"
   fi
-  
+
   echo ""
   show_status
 }
@@ -873,6 +880,13 @@ cmd_done() {
   append_log "$TASK_ID" "$TASK_TITLE" "$commit_hash"
   append_progress "$TASK_ID" "$TASK_TITLE" "$TASK_AGENT" "$validate_result" "$commit_hash" "completed"
 
+  # Commit tracking files (state, tasks marker, log, progress)
+  if git rev-parse --git-dir > /dev/null 2>&1; then
+    git add "$STATE_FILE" "$TASKS_FILE" "$LOG_FILE" "$PROGRESS_FILE" 2>/dev/null
+    git diff --staged --quiet 2>/dev/null || \
+      git commit -m "chore: tracking [${TASK_ID}]" --no-verify 2>/dev/null
+  fi
+
   echo -e "${GREEN}✅ Completed:${NC} $TASK_ID: $TASK_TITLE"
   notify "$TASK_ID complete"
 
@@ -898,6 +912,13 @@ cmd_skip() {
   parse_task "$in_progress"
   append_progress "$TASK_ID" "$TASK_TITLE" "$TASK_AGENT" "skipped" "" "skipped"
   clear_in_progress
+
+  # Commit tracking files (state, log, progress)
+  if git rev-parse --git-dir > /dev/null 2>&1; then
+    git add "$STATE_FILE" "$LOG_FILE" "$PROGRESS_FILE" 2>/dev/null
+    git diff --staged --quiet 2>/dev/null || \
+      git commit -m "chore: tracking [${TASK_ID}] skipped" --no-verify 2>/dev/null
+  fi
 
   echo -e "${YELLOW}Skipped:${NC} $TASK_ID: $TASK_TITLE"
   echo "Task is still in TASKS.md, will be picked up again when ready."
