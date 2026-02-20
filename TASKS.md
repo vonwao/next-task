@@ -90,7 +90,7 @@ Keep it brief — just a nudge so users discover sprint commands on init.
 
 ---
 
-### T12: Auto-commit tracking files after each task @claude
+### T12: Auto-commit tracking files after each task @claude ✅ (done: 2026-02-20, cd8d4c5)
 **Depends:** T11
 **Artifacts:** src/next (modified)
 **Commit:** `feat: auto-commit tracking files after each task`

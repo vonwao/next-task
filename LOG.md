@@ -16,3 +16,4 @@ Completion history for next-task
 ## 2026-02-20
 - **T9**: Scope sprint-done task list to current sprint ✅ `f963680` @ 2026-02-20
 - **T10**: next sprint-status command ✅ `20b45fd` @ 2026-02-20
+- **T12**: Auto-commit tracking files after each task ✅ `cd8d4c5` @ 2026-02-20
