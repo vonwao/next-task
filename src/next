@@ -709,7 +709,19 @@ EOF
     echo -e "${GREEN}Created PROGRESS.md${NC}"
   fi
 
+  # Create sprints/ directory so archive location is ready from day one
+  if [ ! -d "$PROJECT_DIR/sprints" ]; then
+    mkdir -p "$PROJECT_DIR/sprints"
+    touch "$PROJECT_DIR/sprints/.gitkeep"
+    echo -e "${GREEN}Created sprints/${NC}"
+  fi
+
   echo -e "${BLUE}Project initialized for next-task v2${NC}"
+  echo ""
+  echo "Sprint commands:"
+  echo "  next sprint-done    Archive current sprint"
+  echo "  next sprint-new     Start a new sprint"
+  echo "  next sprint-status  Show sprint progress"
 }
 
 cmd_run() {
