@@ -87,3 +87,61 @@ Two small updates to `cmd_init()`:
    ```
 
 Keep it brief — just a nudge so users discover sprint commands on init.
+
+---
+
+### T12: Auto-commit tracking files after each task @claude
+**Depends:** T11
+**Artifacts:** src/next (modified)
+**Commit:** `feat: auto-commit tracking files after each task`
+
+After every task completes, the runner updates `.agent/state.json`, `TASKS.md` (✅ marker),
+`LOG.md`, and `PROGRESS.md` — but leaves them uncommitted. This means `next loop` always
+ends with a dirty working tree, which is surprising and inconsistent.
+
+Fix: after updating all tracking files, commit them in a single follow-up commit.
+
+**Where to add this in `src/next`:**
+
+The tracking updates in `cmd_run()` happen at lines ~805-808:
+```bash
+mark_task_done "$TASK_ID" "$commit_hash"
+mark_done_in_tasks "$TASK_ID" "$commit_hash"
+append_log "$TASK_ID" "$TASK_TITLE" "$commit_hash"
+append_progress "$TASK_ID" "$TASK_TITLE" "$TASK_AGENT" "$validate_result" "$commit_hash" "completed"
+```
+
+Immediately after these four lines, add:
+```bash
+# Commit tracking files (state, tasks marker, log, progress)
+if git rev-parse --git-dir > /dev/null 2>&1; then
+  git add "$STATE_FILE" "$TASKS_FILE" "$LOG_FILE" "$PROGRESS_FILE" 2>/dev/null
+  git diff --staged --quiet 2>/dev/null || \
+    git commit -m "chore: tracking [${TASK_ID}]" --no-verify 2>/dev/null
+fi
+```
+
+Also apply the same pattern to `cmd_done()` and `cmd_skip()` — both update tracking files
+and should commit them. Find the equivalent tracking update lines in each and add the same
+block after them.
+
+Do NOT add this to `cmd_loop()` — it calls `cmd_run()` internally so it gets it for free.
+
+---
+
+### T13: sprint-done sweeps uncommitted tracking files @codex
+**Depends:** T12
+**Artifacts:** src/next (modified)
+**Commit:** `fix: sprint-done commits all tracking files`
+
+After T12, each task auto-commits its tracking files. But as a safety net, `sprint-done`
+should also sweep any remaining uncommitted tracking files into its archive commit — in case
+someone ran tasks before T12 was deployed, or used manual `next done`/`next skip` flows.
+
+In `cmd_sprint_done()`, find the `git add "$archive_path" "$TASKS_FILE"` line and extend it:
+
+```bash
+git add "$archive_path" "$TASKS_FILE" "$STATE_FILE" "$LOG_FILE" "$PROGRESS_FILE" 2>/dev/null
+```
+
+That's the entire change — one line. The commit that follows already handles the rest.
