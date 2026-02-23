@@ -1,6 +1,7 @@
 ### {{ID}}: {{TITLE}} @{{AGENT}}
 **Depends:** {{DEPENDS}}
-**Artifacts:** 
+**Artifacts:**
 **Commit:** `{{COMMIT}}`
 
+Describe the task implementation here.
 {{DESCRIPTION}}

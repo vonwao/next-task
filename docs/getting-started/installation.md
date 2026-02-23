@@ -5,7 +5,7 @@
 - **Git** — sprint uses git for state and commits
 - **One or more agents:**
   - [Codex CLI](https://www.npmjs.com/package/@openai/codex) — `npm i -g @openai/codex`
-  - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) — `npm i -g @anthropic-ai/claude-code`
+  - [Claude Code](https://code.claude.com/docs) — `npm i -g @anthropic-ai/claude-code`
 
 ## Install sprint
 
