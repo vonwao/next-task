@@ -1,0 +1,5 @@
+# Safety net: CLAUDE.md was previously created as a temp symlink
+CLAUDE.md
+# Agent runtime artifacts
+.agent/*.sock
+*.tmp
