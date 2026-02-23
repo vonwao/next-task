@@ -753,9 +753,9 @@ EOF
   echo -e "${BLUE}Project initialized for sprint${NC}"
   echo ""
   echo "Sprint commands:"
-  echo "  sprint sprint-done    Archive current sprint"
-  echo "  sprint sprint-new     Start a new sprint"
-  echo "  sprint sprint-status  Show sprint progress"
+  echo "  sprint archive    Archive current sprint"
+  echo "  sprint new        Start a new sprint"
+  echo "  sprint ss         Show sprint progress"
 }
 
 cmd_run() {
@@ -1441,7 +1441,7 @@ cmd_sprint_status() {
 
   # No active sprint
   if [ ! -f "$SPRINT_FILE" ]; then
-    echo -e "${YELLOW}No active sprint.${NC} Run: sprint sprint-new \"Title\""
+    echo -e "${YELLOW}No active sprint.${NC} Run: sprint new \"Title\""
     return 0
   fi
 
@@ -1727,19 +1727,19 @@ with open('$STATE_FILE', 'w') as f:
 
   echo ""
   echo -e "${CYAN}Create a new SPRINT.md to start the next sprint.${NC}"
-  echo -e "${DIM}  Run: sprint sprint-new \"Sprint name\"${NC}"
+  echo -e "${DIM}  Run: sprint new \"Sprint name\"${NC}"
 }
 
 cmd_sprint_new() {
   local sprint_title="${1:-}"
 
   if [ -f "$SPRINT_FILE" ]; then
-    echo -e "${RED}SPRINT.md already exists. Archive it first with: sprint sprint-done${NC}"
+    echo -e "${RED}SPRINT.md already exists. Archive it first with: sprint archive${NC}"
     exit 1
   fi
 
   if [ -z "$sprint_title" ]; then
-    echo -e "${RED}Usage: sprint sprint-new \"Sprint title\"${NC}"
+    echo -e "${RED}Usage: sprint new \"Sprint title\"${NC}"
     exit 1
   fi
 
@@ -1796,9 +1796,9 @@ cmd_help() {
   echo "  log            Show LOG.md"
   echo "  reset          Clear in-progress state"
   echo "  init           Initialize project"
-  echo "  sprint-done    📦 Archive SPRINT.md → sprints/sprint-NN.md"
-  echo "  sprint-new     🌱 Create a new SPRINT.md for the next sprint"
-  echo "  sprint-status  📊 Show compact sprint overview"
+  echo "  archive        📦 Archive SPRINT.md → sprints/sprint-NN.md"
+  echo "  new            🌱 Create a new SPRINT.md"
+  echo "  ss             📊 Show compact sprint overview"
   echo "  help           Show this help"
   echo ""
   echo "Examples:"
@@ -1809,9 +1809,9 @@ cmd_help() {
   echo "  sprint loop 10                  # Run max 10 iterations"
   echo "  sprint loop 0 --push            # Unlimited, push after each task"
   echo "  sprint commit 'my message'      # Commit with custom message"
-  echo "  sprint sprint-done              # Archive current sprint"
-  echo "  sprint sprint-new \"My Sprint\"   # Start a new sprint"
-  echo "  sprint sprint-status            # Show sprint progress overview"
+  echo "  sprint archive                  # Archive current sprint"
+  echo "  sprint new \"My Sprint\"          # Start a new sprint"
+  echo "  sprint ss                       # Show sprint progress overview"
   echo ""
   echo "State is stored in .agent/state.json"
   echo "Completion log is in LOG.md"
@@ -1837,9 +1837,9 @@ case "${1:-run}" in
   loop)     cmd_loop "$2" "$3" ;;
   preview|p) cmd_preview ;;
   add|a)    shift; cmd_add "$@" ;;
-  sprint-done|sd)     cmd_sprint_done ;;
-  sprint-new|sn)      shift; cmd_sprint_new "$@" ;;
-  sprint-status|ss)   init_state; cmd_sprint_status ;;
+  archive|sprint-done|sd)     cmd_sprint_done ;;
+  new|sprint-new|sn)          shift; cmd_sprint_new "$@" ;;
+  sprint-status|ss)           init_state; cmd_sprint_status ;;
   run|"")   cmd_run ;;
   help|--help|-h) cmd_help ;;
   *)
