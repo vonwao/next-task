@@ -1082,7 +1082,11 @@ cmd_loop() {
   local iteration=0
   local failures=0
   local max_failures=3
-  
+  local tasks_completed=0
+  local tasks_failed=0
+  local loop_stop_reason=""
+  local loop_start_epoch=$(date +%s)
+
   init_state
   
   echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -1097,6 +1101,7 @@ cmd_loop() {
     if [ "$max_iterations" -gt 0 ] && [ "$iteration" -ge "$max_iterations" ]; then
       echo ""
       echo -e "${GREEN}🏁 Reached max iterations ($max_iterations)${NC}"
+      loop_stop_reason="max iterations reached ($max_iterations)"
       break
     fi
     
@@ -1119,6 +1124,7 @@ cmd_loop() {
     
     if [ -z "$task_to_run" ]; then
       echo -e "${GREEN}🎉 All tasks complete!${NC}"
+      loop_stop_reason="all tasks complete"
       break
     fi
     
@@ -1177,6 +1183,7 @@ cmd_loop() {
     # Check if agent failed (non-zero exit, no commits, no changes)
     if [ "$agent_exit" -ne 0 ] && [ -z "$commit_hash" ]; then
       failures=$((failures + 1))
+      tasks_failed=$((tasks_failed + 1))
       append_progress "$TASK_ID" "$TASK_TITLE" "$TASK_AGENT" "skipped" "$commit_hash" "failed" "Agent exit code: $agent_exit" "$duration" "$files_changed"
       echo ""
       echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -1201,6 +1208,7 @@ cmd_loop() {
         echo -e "  ${BOLD}next skip${NC}    — Skip this task and continue"
         echo -e "  ${BOLD}next reset${NC}   — Clear in-progress state"
         echo -e "  ${BOLD}next run${NC}     — Try again manually"
+        loop_stop_reason="failure threshold reached ($failures/$max_failures)"
         break
       fi
 
@@ -1215,10 +1223,12 @@ cmd_loop() {
       if ! eval "$VALIDATE_CMD"; then
         failures=$((failures + 1))
         echo -e "${RED}❌ Validation failed${NC}"
+        tasks_failed=$((tasks_failed + 1))
         append_progress "$TASK_ID" "$TASK_TITLE" "$TASK_AGENT" "failed" "$commit_hash" "failed" "Validation failed" "$duration" "$files_changed"
         if [ "$failures" -ge "$max_failures" ]; then
           echo -e "${RED}Too many failures. Stopping loop.${NC}"
           notify "$TASK_ID validation failed" "next-task ⚠️"
+          loop_stop_reason="validation failure threshold ($failures/$max_failures)"
           break
         fi
         echo -e "${YELLOW}Retrying... (failure $failures/$max_failures)${NC}"
@@ -1234,6 +1244,7 @@ cmd_loop() {
 
     # Success - mark done
     failures=0
+    tasks_completed=$((tasks_completed + 1))
     mark_task_done "$TASK_ID" "$commit_hash"
     mark_done_in_tasks "$TASK_ID" "$commit_hash"
     append_log "$TASK_ID" "$TASK_TITLE" "$commit_hash"
@@ -1257,10 +1268,38 @@ cmd_loop() {
     sleep 1
   done
   
+  # Calculate loop duration
+  local loop_duration=$(( $(date +%s) - loop_start_epoch ))
+  local loop_duration_str=$(format_duration "$loop_duration")
+
   echo ""
   echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
   echo -e "${MAGENTA}Loop finished after $iteration iterations${NC}"
+  [ -n "$loop_duration_str" ] && echo -e "${DIM}Duration: $loop_duration_str | Completed: $tasks_completed | Failed: $tasks_failed${NC}"
+  [ -n "$loop_stop_reason" ] && echo -e "${DIM}Reason: $loop_stop_reason${NC}"
   echo -e "${BOLD}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+  # Append loop summary to PROGRESS.md
+  if [ -n "$loop_stop_reason" ] && [ -f "$PROGRESS_FILE" ]; then
+    local loop_timestamp=$(date '+%Y-%m-%d %H:%M')
+    local loop_duration_suffix=""
+    [ -n "$loop_duration_str" ] && loop_duration_suffix=" ($loop_duration_str)"
+    local loop_block="
+---
+**[LOOP]** Stopped — ${loop_timestamp}${loop_duration_suffix}
+Iterations: $iteration | Completed: $tasks_completed | Failed: $tasks_failed
+Reason: $loop_stop_reason
+---"
+    echo "$loop_block" >> "$PROGRESS_FILE"
+
+    # Commit tracking files with loop summary
+    if git rev-parse --git-dir > /dev/null 2>&1; then
+      git add "$STATE_FILE" "$TASKS_FILE" "$LOG_FILE" "$PROGRESS_FILE" 2>/dev/null
+      git diff --staged --quiet 2>/dev/null || \
+        git commit -m "chore: tracking [LOOP] $loop_stop_reason" --no-verify 2>/dev/null
+    fi
+  fi
+
   show_status
 }
 
