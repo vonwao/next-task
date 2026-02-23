@@ -1,14 +1,14 @@
-# AGENT.md — next-task
+# AGENT.md — sprint
 
 ## Project
-A bash script that runs AI coding agents (Codex, Claude) on a task queue.
+A CLI for running AI work in short, repeatable task loops.
 
 ## Key File
-The entire implementation is in `src/next` — a single bash script (~1100 lines).
+The entire implementation is in `src/sprint` — a single bash script (~1100 lines).
 
 ## Structure
 ```
-src/next          # Main script (bash)
+src/sprint        # Main script (bash)
 docs/             # Docsify documentation
 BACKLOG.md        # Feature backlog
 TASKS.md          # Current sprint tasks
@@ -23,9 +23,9 @@ AGENT.md → guardrails.md → SPRINT.md → task prompt → tail(PROGRESS.md)
 
 ## Commands to Verify
 ```bash
-bash -n src/next           # Check syntax
-next help                  # Verify help works
-next preview               # Test in demo project
+bash -n src/sprint         # Check syntax
+sprint help                # Verify help works
+sprint preview             # Test in demo project
 ```
 
 ## Code Patterns
@@ -38,5 +38,5 @@ next preview               # Test in demo project
 
 ## Rules
 - Keep it bash — no external dependencies beyond git, python3
-- Test syntax with `bash -n src/next` before committing
+- Test syntax with `bash -n src/sprint` before committing
 - Maintain backward compatibility with existing TASKS.md files

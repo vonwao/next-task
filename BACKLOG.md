@@ -1,6 +1,6 @@
-# next-task Backlog
+# sprint Backlog
 
-> Prioritized feature backlog for next-task development.
+> Prioritized feature backlog for sprint development.
 
 ---
 
@@ -9,13 +9,13 @@
 | Feature | Description | Commit |
 |---------|-------------|--------|
 | Core task runner | Parse TASKS.md, run agents, track state | v1 |
-| `next loop` | Ralph-style continuous execution | cfd1899 |
-| `next commit` | Manual checkpoint command | fca715a |
-| `next preview` | Dry run mode | 1c1a2e4 |
+| `sprint loop` | Ralph-style continuous execution | cfd1899 |
+| `sprint commit` | Manual checkpoint command | fca715a |
+| `sprint preview` | Dry run mode | 1c1a2e4 |
 | Commit tracking fix | Capture agent commits correctly | 7114331 |
 | Codex exit fix | Use correct bypass flag | 7114331 |
 | Docsify docs | Zero-build documentation | ddfee86 |
-| Demo repo | 2-minute quick start | next-task-demo |
+| Demo repo | 2-minute quick start | sprint-cli-demo |
 
 ---
 
@@ -59,7 +59,7 @@ validate: pnpm test --run
 ### Better Error Messages
 **What:** When agent fails, show helpful next steps.
 **Current:** "Task may have failed (exit: 1, no commit)"
-**Better:** Show last 20 lines of output, suggest `next skip` or retry.
+**Better:** Show last 20 lines of output, suggest `sprint skip` or retry.
 **Effort:** 1 hour
 
 ---
@@ -76,7 +76,7 @@ validate: pnpm test --run
 **Effort:** 2-3 hours
 
 ### Task Templates
-**What:** `next add "Add user auth" @claude` generates task from template.
+**What:** `sprint add "Add user auth" @claude` generates task from template.
 **Why:** Faster task creation, consistent format.
 **Effort:** 2-3 hours
 
@@ -89,7 +89,7 @@ osascript -e 'display notification "T5 complete" with title "next-task"'
 **Why:** Know when to check back on long-running loops.
 **Effort:** 1 hour
 
-### `next retry`
+### `sprint retry`
 **What:** Re-run the last failed task.
 **Why:** Common workflow after fixing an issue.
 **Effort:** 1 hour
@@ -99,20 +99,20 @@ osascript -e 'display notification "T5 complete" with title "next-task"'
 ## 🔮 P3: Medium Value, Higher Effort
 
 ### Planning Mode
-**What:** `next plan` — gap analysis between specs and code.
+**What:** `sprint plan` — gap analysis between specs and code.
 ```bash
-next plan              # Compare specs/ to src/, suggest tasks
-next plan --apply      # Auto-update TASKS.md
+sprint plan              # Compare specs/ to src/, suggest tasks
+sprint plan --apply      # Auto-update TASKS.md
 ```
 **Why:** Auto-generate task breakdowns from specs.
 **Risk:** LLM might miss nuance, needs human review.
 **Effort:** 4-6 hours
 
 ### Multi-Project Support
-**What:** Run next-task across multiple repos.
+**What:** Run sprint across multiple repos.
 ```bash
-next --project ~/dev/api status
-next --project ~/dev/frontend loop
+sprint --project ~/dev/api status
+sprint --project ~/dev/frontend loop
 ```
 **Why:** Monorepo / multi-service workflows.
 **Effort:** 3-4 hours
@@ -138,7 +138,7 @@ next --project ~/dev/frontend loop
 **Effort:** 4+ hours
 
 ### Task Dependencies Graph
-**What:** `next graph` — visualize task dependencies.
+**What:** `sprint graph` — visualize task dependencies.
 **Why:** Understand blocked/ready at a glance.
 **Effort:** 2-3 hours
 
@@ -166,7 +166,7 @@ next --project ~/dev/frontend loop
 1. ✅ Guardrails file (30 min)
 2. ✅ Validation config (2 hours)
 3. ✅ Better error messages (1 hour)
-4. ✅ `next retry` (30 min)
+4. ✅ `sprint retry` (30 min)
 
 **If we have 8 hours:**
 - All of the above, plus:

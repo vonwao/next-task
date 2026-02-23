@@ -1,12 +1,12 @@
-# next done
+# sprint done
 
 Manually mark current task complete.
 
 ## Usage
 
 ```bash
-next done
-next d        # Short alias
+sprint done
+sprint d        # Short alias
 ```
 
 ## When to Use

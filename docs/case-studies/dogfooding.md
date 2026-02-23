@@ -1,31 +1,31 @@
-# Dogfooding: Building next-task with next-task
+# Dogfooding: Building sprint with sprint
 
 *Using the tool to build itself — the ultimate test.*
 
 ## The Setup
 
-We wanted to add P2 features to next-task:
+We wanted to add P2 features to sprint:
 - **T1:** Specs directory support
 - **T2:** Progress notifications
 - **T3:** Task templates
 
-Instead of building these manually, we used next-task itself to orchestrate the work. Here's how it went.
+Instead of building these manually, we used sprint itself to orchestrate the work. Here's how it went.
 
 ## Creating the Task File
 
 ```markdown
-# Tasks — next-task
+# Tasks — sprint
 
-Dogfooding: using next-task to build next-task.
+Dogfooding: using sprint to build sprint.
 
 ## P2: Medium Priority Features
 
 ### T1: Specs directory support @codex
-**Artifacts:** src/next (modified)
+**Artifacts:** src/sprint (modified)
 **Commit:** `feat: add specs directory support`
 
 Add support for external spec files referenced in tasks.
-When a task has `**Spec:** specs/foo.md`, load that file's content 
+When a task has `**Spec:** specs/foo.md`, load that file's content
 and include it in the prompt sent to the agent.
 
 Implementation:
@@ -35,7 +35,7 @@ Implementation:
 
 ### T2: Progress notifications @codex
 **Depends:** T1
-**Artifacts:** src/next (modified)
+**Artifacts:** src/sprint (modified)
 **Commit:** `feat: add progress notifications`
 
 Add desktop notifications when tasks complete or fail.
@@ -49,9 +49,9 @@ On macOS, use osascript. On Linux, use notify-send.
 ## Running It
 
 ```bash
-cd ~/dev/next-task
-next init
-next run
+cd ~/dev/sprint-cli
+sprint init
+sprint run
 ```
 
 ## What Happened
@@ -64,7 +64,7 @@ Codex:
 3. Tested bash escaping edge cases (thorough!)
 4. Added `TASK_SPEC` parsing
 5. Modified `build_prompt()` to include spec content
-6. Created temporary test files, ran `next preview`
+6. Created temporary test files, ran `sprint preview`
 7. Cleaned up test files
 8. Committed with the specified message
 
@@ -85,17 +85,17 @@ Then the process was killed (signal 9 — possibly OOM or timeout).
 
 ### What Worked Well
 
-✅ **Task isolation** — Each task was self-contained with clear artifacts  
-✅ **Commit messages** — Codex used the exact messages we specified  
-✅ **Testing** — Codex created temp files, tested, then cleaned up  
-✅ **Code patterns** — AGENT.md helped Codex understand conventions  
-✅ **Dependencies** — T2 correctly waited for T1 to complete  
+✅ **Task isolation** — Each task was self-contained with clear artifacts
+✅ **Commit messages** — Codex used the exact messages we specified
+✅ **Testing** — Codex created temp files, tested, then cleaned up
+✅ **Code patterns** — AGENT.md helped Codex understand conventions
+✅ **Dependencies** — T2 correctly waited for T1 to complete
 
 ### What Could Be Better
 
-⚠️ **Process stability** — T2 was killed mid-task, required manual recovery  
-⚠️ **State recovery** — After kill, state file needed manual cleanup  
-⚠️ **Run vs Loop** — `next run` seemed to continue to T2 (unexpected)  
+⚠️ **Process stability** — T2 was killed mid-task, required manual recovery
+⚠️ **State recovery** — After kill, state file needed manual cleanup
+⚠️ **Run vs Loop** — `sprint run` seemed to continue to T2 (unexpected)
 
 ### Metrics
 
@@ -113,7 +113,7 @@ Then the process was killed (signal 9 — possibly OOM or timeout).
 
 2. **Use preview before running**
    ```bash
-   next preview  # See what would happen
+   sprint preview  # See what would happen
    ```
 
 3. **Keep tasks small** — Easier to recover if something fails
@@ -124,7 +124,7 @@ Then the process was killed (signal 9 — possibly OOM or timeout).
 
 ## The Meta Result
 
-After dogfooding, next-task now has:
+After dogfooding, sprint now has:
 - ✅ Spec file support (`**Spec:** specs/foo.md`)
 - ✅ Desktop notifications (macOS/Linux)
 - 🔜 Task templates (T3 ready to run)

@@ -1,19 +1,19 @@
-# next loop
+# sprint loop
 
 Run tasks continuously (Ralph mode).
 
 ## Usage
 
 ```bash
-next loop [max_iterations] [--push]
+sprint loop [max_iterations] [--push]
 ```
 
 ## Examples
 
 ```bash
-next loop           # Until all done (Ctrl+C to stop)
-next loop 10        # Max 10 iterations
-next loop 0 --push  # Push after each task
+sprint loop           # Until all done (Ctrl+C to stop)
+sprint loop 10        # Max 10 iterations
+sprint loop 0 --push  # Push after each task
 ```
 
 ## Description
@@ -34,7 +34,7 @@ Too many failures (3). Stopping loop.
 ```
 
 To continue:
-- Fix the issue and `next loop` again
-- `next skip` to skip the problematic task
+- Fix the issue and `sprint loop` again
+- `sprint skip` to skip the problematic task
 
 See [Loop Mode](/concepts/loop-mode.md) for full guide.

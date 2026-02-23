@@ -1,5 +1,5 @@
 #!/bin/bash
-# Install next-task to ~/.local/bin
+# Install sprint to ~/.local/bin
 
 set -e
 
@@ -9,10 +9,10 @@ INSTALL_DIR="$HOME/.local/bin"
 mkdir -p "$INSTALL_DIR"
 
 # Install main script
-cp "$SCRIPT_DIR/src/next" "$INSTALL_DIR/next"
-chmod +x "$INSTALL_DIR/next"
+cp "$SCRIPT_DIR/src/sprint" "$INSTALL_DIR/sprint"
+chmod +x "$INSTALL_DIR/sprint"
 
-echo "✅ Installed 'next' to $INSTALL_DIR/next"
+echo "✅ Installed 'sprint' to $INSTALL_DIR/sprint"
 
 # Check if in PATH
 if ! echo "$PATH" | grep -q "$INSTALL_DIR"; then
@@ -26,6 +26,6 @@ fi
 echo ""
 echo "Usage:"
 echo "  cd ~/dev/your-project"
-echo "  next init    # Set up project"
-echo "  next         # Run next task"
-echo "  next status  # Show status"
+echo "  sprint init    # Set up project"
+echo "  sprint         # Run next task"
+echo "  sprint status  # Show status"

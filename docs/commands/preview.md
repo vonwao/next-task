@@ -1,12 +1,12 @@
-# next preview
+# sprint preview
 
 Dry run — show what would happen without doing anything.
 
 ## Usage
 
 ```bash
-next preview
-next p
+sprint preview
+sprint p
 ```
 
 ## Output
@@ -25,7 +25,7 @@ Commit:    feat: add auth
 Description:
 Implement JWT-based authentication...
 
-Run 'next' or 'next run' to execute this task.
+Run 'sprint' or 'sprint run' to execute this task.
 ```
 
 ## When to Use

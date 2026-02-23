@@ -1,12 +1,12 @@
-# next run
+# sprint run
 
 Run a single task.
 
 ## Usage
 
 ```bash
-next run
-next        # Same as 'next run'
+sprint run
+sprint        # Same as 'sprint run'
 ```
 
 ## Behavior
@@ -36,5 +36,5 @@ Artifacts: src/services/user.ts
 
 ```
 Task already in progress: T3: Implement user service
-Run 'next done' to complete it, or 'next skip' to skip.
+Run 'sprint done' to complete it, or 'sprint skip' to skip.
 ```

@@ -4,7 +4,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                        next run                              │
+│                        sprint run                            │
 ├─────────────────────────────────────────────────────────────┤
 │  1. Read TASKS.md                                           │
 │  2. Read .agent/state.json (what's done)                    │
@@ -19,7 +19,7 @@
 
 ## Files as Memory
 
-next-task uses files as the source of truth:
+sprint uses files as the source of truth:
 
 | File | Purpose |
 |------|---------|

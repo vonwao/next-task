@@ -1,10 +1,6 @@
 #!/bin/bash
-# next v2 - Task queue runner for AI coding agents
-# Major improvements:
-# - Separate state file (.agent/state.json) for reliability
-# - LOG.md for completion history (append-only)
-# - TASKS.md stays clean (mark in-place, don't move tasks)
-# - Cleaner prompts (only current task, not all future tasks)
+# sprint — Short loops. Real progress.
+# A CLI for running AI work in short, repeatable task loops.
 
 # Colors
 RED='\033[0;31m'
@@ -284,7 +280,7 @@ load_config() {
 # Send desktop notification (best-effort)
 notify() {
   local message="$1"
-  local title="${2:-next-task}"
+  local title="${2:-sprint}"
   
   [ "$NOTIFICATIONS" = "false" ] && return 0
   
@@ -754,12 +750,12 @@ EOF
     echo -e "${GREEN}Created sprints/${NC}"
   fi
 
-  echo -e "${BLUE}Project initialized for next-task v2${NC}"
+  echo -e "${BLUE}Project initialized for sprint${NC}"
   echo ""
   echo "Sprint commands:"
-  echo "  next sprint-done    Archive current sprint"
-  echo "  next sprint-new     Start a new sprint"
-  echo "  next sprint-status  Show sprint progress"
+  echo "  sprint sprint-done    Archive current sprint"
+  echo "  sprint sprint-new     Start a new sprint"
+  echo "  sprint sprint-status  Show sprint progress"
 }
 
 cmd_run() {
@@ -770,7 +766,7 @@ cmd_run() {
   if [ -n "$in_progress" ]; then
     parse_task "$in_progress"
     echo -e "${YELLOW}Task already in progress:${NC} $TASK_ID: $TASK_TITLE"
-    echo "Run 'next done' to complete it, or 'next skip' to skip."
+    echo "Run 'sprint done' to complete it, or 'sprint skip' to skip."
     return 1
   fi
   
@@ -846,7 +842,7 @@ cmd_run() {
     echo -e "${BLUE}Running validation:${NC} $VALIDATE_CMD"
     if ! eval "$VALIDATE_CMD"; then
       echo -e "${RED}❌ Validation failed${NC}"
-      echo -e "${DIM}Fix the issues and run 'next done' to complete, or 'next skip' to skip.${NC}"
+      echo -e "${DIM}Fix the issues and run 'sprint done' to complete, or 'sprint skip' to skip.${NC}"
       append_progress "$TASK_ID" "$TASK_TITLE" "$TASK_AGENT" "failed" "$commit_hash" "failed" "Validation failed" "$duration" "$files_changed"
       return 1
     fi
@@ -877,7 +873,7 @@ cmd_run() {
 
   # Log to CTO task-log if available
   if [ -x "$HOME/clawd/scripts/task-log.sh" ]; then
-    "$HOME/clawd/scripts/task-log.sh" "$PROJECT_NAME" "$TASK_TITLE" done "next-task,$TASK_AGENT" "$commit_hash" 2>/dev/null && \
+    "$HOME/clawd/scripts/task-log.sh" "$PROJECT_NAME" "$TASK_TITLE" done "sprint,$TASK_AGENT" "$commit_hash" 2>/dev/null && \
       echo -e "${CYAN}📝 Logged to task-log${NC}"
   fi
 
@@ -950,7 +946,7 @@ cmd_done() {
 
   # Log to CTO task-log if available
   if [ -x "$HOME/clawd/scripts/task-log.sh" ]; then
-    "$HOME/clawd/scripts/task-log.sh" "$PROJECT_NAME" "$TASK_TITLE" done "next-task,$TASK_AGENT" "$commit_hash" 2>/dev/null && \
+    "$HOME/clawd/scripts/task-log.sh" "$PROJECT_NAME" "$TASK_TITLE" done "sprint,$TASK_AGENT" "$commit_hash" 2>/dev/null && \
       echo -e "${CYAN}📝 Logged to task-log${NC}"
   fi
 
@@ -1013,7 +1009,7 @@ cmd_retry() {
   local in_progress=$(get_in_progress_id)
   if [ -z "$in_progress" ]; then
     echo -e "${YELLOW}No task in progress to retry${NC}"
-    echo -e "${DIM}Use 'next run' to start a new task.${NC}"
+    echo -e "${DIM}Use 'sprint run' to start a new task.${NC}"
     return 1
   fi
   
@@ -1202,12 +1198,12 @@ cmd_loop() {
 
       if [ "$failures" -ge "$max_failures" ]; then
         echo -e "${RED}Too many failures ($failures). Stopping loop.${NC}"
-        notify "$TASK_ID failed" "next-task ⚠️"
+        notify "$TASK_ID failed" "sprint ⚠️"
         echo ""
         echo -e "${CYAN}Next steps:${NC}"
-        echo -e "  ${BOLD}next skip${NC}    — Skip this task and continue"
-        echo -e "  ${BOLD}next reset${NC}   — Clear in-progress state"
-        echo -e "  ${BOLD}next run${NC}     — Try again manually"
+        echo -e "  ${BOLD}sprint skip${NC}    — Skip this task and continue"
+        echo -e "  ${BOLD}sprint reset${NC}   — Clear in-progress state"
+        echo -e "  ${BOLD}sprint run${NC}     — Try again manually"
         loop_stop_reason="failure threshold reached ($failures/$max_failures)"
         break
       fi
@@ -1227,7 +1223,7 @@ cmd_loop() {
         append_progress "$TASK_ID" "$TASK_TITLE" "$TASK_AGENT" "failed" "$commit_hash" "failed" "Validation failed" "$duration" "$files_changed"
         if [ "$failures" -ge "$max_failures" ]; then
           echo -e "${RED}Too many failures. Stopping loop.${NC}"
-          notify "$TASK_ID validation failed" "next-task ⚠️"
+          notify "$TASK_ID validation failed" "sprint ⚠️"
           loop_stop_reason="validation failure threshold ($failures/$max_failures)"
           break
         fi
@@ -1255,7 +1251,7 @@ cmd_loop() {
 
     # Log to CTO task-log if available
     if [ -x "$HOME/clawd/scripts/task-log.sh" ]; then
-      "$HOME/clawd/scripts/task-log.sh" "$PROJECT_NAME" "$TASK_TITLE" done "next-task,$TASK_AGENT" "$commit_hash" 2>/dev/null
+      "$HOME/clawd/scripts/task-log.sh" "$PROJECT_NAME" "$TASK_TITLE" done "sprint,$TASK_AGENT" "$commit_hash" 2>/dev/null
     fi
     
     # Optional: push after each iteration
@@ -1335,7 +1331,7 @@ cmd_preview() {
   echo -e "${DIM}Description:${NC}"
   echo "$TASK_DESC" | head -20
   echo ""
-  echo -e "${DIM}Run 'next' or 'next run' to execute this task.${NC}"
+  echo -e "${DIM}Run 'sprint' or 'sprint run' to execute this task.${NC}"
 }
 
 cmd_add() {
@@ -1366,7 +1362,7 @@ cmd_add() {
         ;;
       -*)
         echo -e "${RED}Unknown option: $1${NC}"
-        echo "Usage: next add \"Task description\" [@claude|@codex] [--depends T<n>]"
+        echo "Usage: sprint add \"Task description\" [@claude|@codex] [--depends T<n>]"
         return 1
         ;;
       *)
@@ -1381,13 +1377,13 @@ cmd_add() {
   # Validate description
   if [ -z "$description" ]; then
     echo -e "${RED}Error: Task description required${NC}"
-    echo "Usage: next add \"Task description\" [@claude|@codex] [--depends T<n>]"
+    echo "Usage: sprint add \"Task description\" [@claude|@codex] [--depends T<n>]"
     return 1
   fi
   
   # Ensure TASKS.md exists
   if [ ! -f "$TASKS_FILE" ]; then
-    echo -e "${RED}Error: TASKS.md not found. Run 'next init' first.${NC}"
+    echo -e "${RED}Error: TASKS.md not found. Run 'sprint init' first.${NC}"
     return 1
   fi
   
@@ -1445,7 +1441,7 @@ cmd_sprint_status() {
 
   # No active sprint
   if [ ! -f "$SPRINT_FILE" ]; then
-    echo -e "${YELLOW}No active sprint.${NC} Run: next sprint-new \"Title\""
+    echo -e "${YELLOW}No active sprint.${NC} Run: sprint sprint-new \"Title\""
     return 0
   fi
 
@@ -1561,7 +1557,7 @@ except:
 
   # Write task archiver to temp file (single-quoted heredoc = no bash expansion inside)
   local py_script
-  py_script=$(mktemp /tmp/next-archive-XXXXXX.py)
+  py_script=$(mktemp /tmp/sprint-archive-XXXXXX.py)
   cat > "$py_script" << 'PYEOF'
 import re, sys, json
 
@@ -1731,19 +1727,19 @@ with open('$STATE_FILE', 'w') as f:
 
   echo ""
   echo -e "${CYAN}Create a new SPRINT.md to start the next sprint.${NC}"
-  echo -e "${DIM}  Run: next sprint-new \"Sprint name\"${NC}"
+  echo -e "${DIM}  Run: sprint sprint-new \"Sprint name\"${NC}"
 }
 
 cmd_sprint_new() {
   local sprint_title="${1:-}"
 
   if [ -f "$SPRINT_FILE" ]; then
-    echo -e "${RED}SPRINT.md already exists. Archive it first with: next sprint-done${NC}"
+    echo -e "${RED}SPRINT.md already exists. Archive it first with: sprint sprint-done${NC}"
     exit 1
   fi
 
   if [ -z "$sprint_title" ]; then
-    echo -e "${RED}Usage: next sprint-new \"Sprint title\"${NC}"
+    echo -e "${RED}Usage: sprint sprint-new \"Sprint title\"${NC}"
     exit 1
   fi
 
@@ -1782,40 +1778,40 @@ EOF
 }
 
 cmd_help() {
-  echo "next-task v2: Task queue runner for AI coding agents"
+  echo "sprint: A CLI for running AI work in short, repeatable task loops."
   echo ""
-  echo "Usage: next [command]"
+  echo "Usage: sprint [command]"
   echo ""
   echo "Commands:"
-  echo "  (default)    Run next ready task (single task, then stop)"
-  echo "  add          ➕ Add a new task to TASKS.md"
-  echo "  loop         🔄 Ralph mode: run tasks continuously until done"
-  echo "  preview      👀 Dry run: show what would happen"
-  echo "  status       Show task status"
-  echo "  done         Mark current task complete (manual mode)"
-  echo "  commit       Commit changes (uses task message or custom)"
-  echo "  skip         Skip current task"
-  echo "  retry        Retry the in-progress task"
-  echo "  list         Show TASKS.md"
-  echo "  log          Show LOG.md"
-  echo "  reset        Clear in-progress state"
-  echo "  init         Initialize project"
+  echo "  (default)      Run next ready task (single task, then stop)"
+  echo "  add            ➕ Add a new task to TASKS.md"
+  echo "  loop           🔄 Run tasks continuously until done"
+  echo "  preview        👀 Dry run: show what would happen"
+  echo "  status         Show task status"
+  echo "  done           Mark current task complete (manual mode)"
+  echo "  commit         Commit changes (uses task message or custom)"
+  echo "  skip           Skip current task"
+  echo "  retry          Retry the in-progress task"
+  echo "  list           Show TASKS.md"
+  echo "  log            Show LOG.md"
+  echo "  reset          Clear in-progress state"
+  echo "  init           Initialize project"
   echo "  sprint-done    📦 Archive SPRINT.md → sprints/sprint-NN.md"
   echo "  sprint-new     🌱 Create a new SPRINT.md for the next sprint"
   echo "  sprint-status  📊 Show compact sprint overview"
-  echo "  help         Show this help"
+  echo "  help           Show this help"
   echo ""
   echo "Examples:"
-  echo "  next                          # Run one task"
-  echo "  next add \"Task name\" @claude  # Add task for Claude"
-  echo "  next add \"Task\" --depends T5  # Add task with dependency"
-  echo "  next loop                     # Run all tasks continuously (Ctrl+C to stop)"
-  echo "  next loop 10                  # Run max 10 iterations"
-  echo "  next loop 0 --push            # Unlimited, push after each task"
-  echo "  next commit 'my message'      # Commit with custom message"
-  echo "  next sprint-done              # Archive current sprint"
-  echo "  next sprint-new \"My Sprint\"   # Start a new sprint"
-  echo "  next sprint-status            # Show sprint progress overview"
+  echo "  sprint                          # Run one task"
+  echo "  sprint add \"Task name\" @claude  # Add task for Claude"
+  echo "  sprint add \"Task\" --depends T5  # Add task with dependency"
+  echo "  sprint loop                     # Run all tasks continuously (Ctrl+C to stop)"
+  echo "  sprint loop 10                  # Run max 10 iterations"
+  echo "  sprint loop 0 --push            # Unlimited, push after each task"
+  echo "  sprint commit 'my message'      # Commit with custom message"
+  echo "  sprint sprint-done              # Archive current sprint"
+  echo "  sprint sprint-new \"My Sprint\"   # Start a new sprint"
+  echo "  sprint sprint-status            # Show sprint progress overview"
   echo ""
   echo "State is stored in .agent/state.json"
   echo "Completion log is in LOG.md"

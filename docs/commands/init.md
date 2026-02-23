@@ -1,11 +1,11 @@
-# next init
+# sprint init
 
-Initialize a project for next-task.
+Initialize a project for sprint.
 
 ## Usage
 
 ```bash
-next init
+sprint init
 ```
 
 ## Creates
@@ -18,4 +18,4 @@ next init
 
 ## After Init
 
-Create a `TASKS.md` file with your tasks, then run `next status`.
+Create a `TASKS.md` file with your tasks, then run `sprint status`.

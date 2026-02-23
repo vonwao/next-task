@@ -1,6 +1,6 @@
 # Introduction
 
-**next-task** is a task queue runner for AI coding agents. It provides a simple, file-based way to define work and let agents execute it.
+**sprint** is a task queue runner for AI coding agents. It provides a simple, file-based way to define work and let agents execute it.
 
 ## The Problem
 
@@ -12,7 +12,7 @@ AI coding agents like Codex and Claude Code are powerful, but they work best wit
 
 ## The Solution
 
-next-task gives you:
+sprint gives you:
 
 1. **A task file** (`TASKS.md`) — markdown-based, human-readable
 2. **Explicit dependencies** — T2 doesn't start until T1 is done
@@ -20,7 +20,7 @@ next-task gives you:
 4. **State tracking** — know exactly what's done, what's in progress
 5. **Loop mode** — run continuously until the queue is empty
 
-## When to Use next-task
+## When to Use sprint
 
 ✅ **Good fit:**
 - Greenfield projects with clear milestones
@@ -37,7 +37,7 @@ next-task gives you:
 
 | Tool | Style | Best For |
 |------|-------|----------|
-| **next-task** | Explicit queue, task-by-task | Structured builds, audit trails |
+| **sprint** | Explicit queue, task-by-task | Structured builds, audit trails |
 | **Ralph loops** | "Most important thing" each iteration | Spec-driven, AFK coding |
 | **Direct agent** | Ad-hoc prompts | Quick fixes, exploration |
 | **Cursor/IDE agents** | Inline assistance | Interactive development |

@@ -1,6 +1,6 @@
-# Tasks — next-task
+# Tasks — sprint
 
-Dogfooding: using next-task to build next-task.
+Dogfooding: using sprint to build sprint.
 
 ## Archived Tasks
 - T1 ✅ Specs directory support `4673ecc` → sprints/sprint-03.md
@@ -25,13 +25,13 @@ Dogfooding: using next-task to build next-task.
 
 ### T14: Replace CLAUDE.md symlink with --append-system-prompt @claude ✅ (done: 2026-02-22, b596312)
 **Depends:** (none)
-**Artifacts:** src/next (modified)
+**Artifacts:** src/sprint (modified)
 **Commit:** `feat: use --append-system-prompt for claude agent context`
 
 Replace the fragile CLAUDE.md symlink hack in `run_agent()` with Claude Code's
 `--append-system-prompt` flag to inject AGENT.md content.
 
-Current behavior (lines 479-509 of src/next):
+Current behavior (lines 479-509 of src/sprint):
 1. Creates symlink `CLAUDE.md → AGENT.md` before running claude
 2. Claude Code reads CLAUDE.md natively as project context
 3. Guardrails + SPRINT.md prepended to user prompt
@@ -47,7 +47,7 @@ New behavior:
 
 The codex path stays unchanged (temp file prepend works fine).
 
-Test: run `next preview` and verify it still shows task info correctly.
+Test: run `sprint preview` and verify it still shows task info correctly.
 Verify: no CLAUDE.md file created during or after agent execution.
 
 ### T15: Add .gitignore with sensible defaults @claude ✅ (done: 2026-02-22, 5574850)
@@ -69,7 +69,7 @@ Keep it minimal. Don't add things that aren't relevant to this project.
 
 ### T16: Add duration tracking to progress blocks @claude ✅ (done: 2026-02-22, 0299197)
 **Depends:** (none)
-**Artifacts:** src/next (modified)
+**Artifacts:** src/sprint (modified)
 **Commit:** `feat: add duration to progress blocks`
 
 Track how long each task takes and include it in progress blocks.
@@ -94,7 +94,7 @@ For durations over 60s, format as `Xm Ys` (e.g., `2m 15s`).
 
 ### T17: Add files-changed count to progress blocks @claude ✅ (done: 2026-02-22, 1f1f1fb)
 **Depends:** T16
-**Artifacts:** src/next (modified)
+**Artifacts:** src/sprint (modified)
 **Commit:** `feat: add files-changed count to progress blocks`
 
 After a task commits, capture how many files changed and include it in the progress block.
@@ -118,7 +118,7 @@ Result: completed
 
 ### T18: Explicit stop reasons in loop mode @claude ✅ (done: 2026-02-22, c4f8952)
 **Depends:** T17
-**Artifacts:** src/next (modified)
+**Artifacts:** src/sprint (modified)
 **Commit:** `feat: explicit stop reasons in loop mode`
 
 Make loop mode record WHY it stopped, both in terminal output and PROGRESS.md.

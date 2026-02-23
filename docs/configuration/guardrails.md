@@ -23,7 +23,7 @@ When agents repeatedly make the same mistake, add a guardrail:
 
 ## How It Works
 
-When `next run` or `next loop` executes a task:
+When `sprint run` or `sprint loop` executes a task:
 
 1. Load AGENT.md (if exists)
 2. Load .agent/guardrails.md (if exists)
@@ -51,6 +51,6 @@ The agent sees guardrails as part of its context.
 Don't preemptively add every rule. When an agent makes a mistake:
 1. Fix the issue
 2. Add a guardrail to prevent it next time
-3. Run `next retry`
+3. Run `sprint retry`
 
 This is the "tuning like a guitar" approach from the Ralph methodology.

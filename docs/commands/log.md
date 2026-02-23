@@ -1,11 +1,11 @@
-# next log
+# sprint log
 
 Show completion history.
 
 ## Usage
 
 ```bash
-next log
+sprint log
 ```
 
 ## Output

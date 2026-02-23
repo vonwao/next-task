@@ -1,6 +1,6 @@
 # Agents
 
-next-task supports multiple AI coding agents.
+sprint supports multiple AI coding agents.
 
 ## Supported Agents
 
@@ -61,7 +61,7 @@ yolo: true       # Auto-approve all actions
 ### T1: Initialize project @codex        # Boilerplate
 ### T2: Design data model @claude        # Needs thinking
 
-## Milestone 2: Implementation  
+## Milestone 2: Implementation
 ### T3: Implement CRUD @codex           # Repetitive
 ### T4: Add caching layer @claude       # Complex decision
 ```

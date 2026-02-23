@@ -1,12 +1,12 @@
-# next retry
+# sprint retry
 
 Re-run the current in-progress task.
 
 ## Usage
 
 ```bash
-next retry
-next r
+sprint retry
+sprint r
 ```
 
 ## When to Use
@@ -14,9 +14,9 @@ next r
 After a task fails and you've fixed the issue:
 
 ```bash
-next run         # Task fails
+sprint run         # Task fails
 # ... fix the problem ...
-next retry       # Try again
+sprint retry       # Try again
 ```
 
 ## Behavior
@@ -29,5 +29,5 @@ next retry       # Try again
 
 ```
 No task in progress to retry
-Use 'next run' to start a new task.
+Use 'sprint run' to start a new task.
 ```

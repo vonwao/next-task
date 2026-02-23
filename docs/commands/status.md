@@ -1,12 +1,12 @@
-# next status
+# sprint status
 
 Show task queue status.
 
 ## Usage
 
 ```bash
-next status
-next s
+sprint status
+sprint s
 ```
 
 ## Output

@@ -1,11 +1,11 @@
-# next reset
+# sprint reset
 
 Clear in-progress state.
 
 ## Usage
 
 ```bash
-next reset
+sprint reset
 ```
 
 ## When to Use

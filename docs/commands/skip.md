@@ -1,11 +1,11 @@
-# next skip
+# sprint skip
 
 Skip the current task without completing it.
 
 ## Usage
 
 ```bash
-next skip
+sprint skip
 ```
 
 ## When to Use

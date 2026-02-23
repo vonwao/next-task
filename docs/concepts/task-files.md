@@ -58,7 +58,7 @@ Task description goes here. Can be multiple paragraphs.
 
 ## Marking Tasks Done
 
-When complete, next-task adds a marker:
+When complete, sprint adds a marker:
 
 ```markdown
 ### T1: Initialize project @codex ✅ (done: 2026-02-03, abc1234)

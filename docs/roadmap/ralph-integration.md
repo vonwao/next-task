@@ -14,9 +14,9 @@ while :; do cat PROMPT.md | claude-code ; done
 
 ## What We've Implemented
 
-- ✅ **`next loop`** — Continuous execution
+- ✅ **`sprint loop`** — Continuous execution
 - ✅ **Commit tracking** — Captures agent commits correctly
-- ✅ **`next commit`** — Manual checkpoint command
+- ✅ **`sprint commit`** — Manual checkpoint command
 
 ## Proposed Features
 
@@ -60,7 +60,7 @@ validate:
 Gap analysis that compares specs to code:
 
 ```bash
-next plan    # Generate/update TASKS.md from specs
+sprint plan    # Generate/update TASKS.md from specs
 ```
 
 ### P4: Subagent Support

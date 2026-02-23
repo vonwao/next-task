@@ -2,45 +2,45 @@
 
 ## Prerequisites
 
-- **Git** — next-task uses git for state and commits
+- **Git** — sprint uses git for state and commits
 - **One or more agents:**
   - [Codex CLI](https://github.com/openai/codex) — `npm i -g @openai/codex`
   - [Claude Code](https://claude.ai/code) — `curl -fsSL https://claude.ai/install.sh | bash`
 
-## Install next-task
+## Install sprint
 
 ### Option 1: Clone and Symlink (Recommended)
 
 ```bash
 # Clone the repo
-git clone https://github.com/vonwao/next-task.git ~/.next-task
+git clone https://github.com/vonwao/sprint-cli.git ~/.sprint-cli
 
 # Add to PATH (add to your shell profile)
-export PATH="$HOME/.next-task/src:$PATH"
+export PATH="$HOME/.sprint-cli/src:$PATH"
 
 # Or symlink
-ln -s ~/.next-task/src/next /usr/local/bin/next
+ln -s ~/.sprint-cli/src/sprint /usr/local/bin/sprint
 ```
 
 ### Option 2: Download Script Directly
 
 ```bash
-curl -o /usr/local/bin/next https://raw.githubusercontent.com/vonwao/next-task/main/src/next
-chmod +x /usr/local/bin/next
+curl -o /usr/local/bin/sprint https://raw.githubusercontent.com/vonwao/sprint-cli/main/src/sprint
+chmod +x /usr/local/bin/sprint
 ```
 
 ## Verify Installation
 
 ```bash
-next help
+sprint help
 ```
 
 You should see:
 
 ```
-next-task v2: Task queue runner for AI coding agents
+sprint v2: Task queue runner for AI coding agents
 
-Usage: next [command]
+Usage: sprint [command]
 
 Commands:
   (default)  Run next ready task (single task, then stop)
@@ -66,4 +66,4 @@ claude login
 ## Next Steps
 
 - [Quick Start](quick-start.md) — Create your first task queue
-- [Concepts](/concepts/how-it-works.md) — Understand how next-task works
+- [Concepts](/concepts/how-it-works.md) — Understand how sprint works

@@ -7,9 +7,9 @@ Inspired by the [Ralph Wiggum pattern](https://ghuntley.com/ralph/).
 ## Usage
 
 ```bash
-next loop           # Run until all tasks done
-next loop 10        # Max 10 iterations
-next loop 0 --push  # Push after each task
+sprint loop           # Run until all tasks done
+sprint loop 10        # Max 10 iterations
+sprint loop 0 --push  # Push after each task
 ```
 
 ## How It Works
@@ -31,7 +31,7 @@ If a task fails 3 times in a row, the loop stops:
 Retrying... (failure 1/3)
 ...
 Too many failures (3). Stopping loop.
-Run 'next skip' to skip this task.
+Run 'sprint skip' to skip this task.
 ```
 
 ## When to Use
@@ -51,15 +51,15 @@ Run 'next skip' to skip this task.
 ### Start Small
 
 ```bash
-next loop 3    # Test with a few tasks first
+sprint loop 3    # Test with a few tasks first
 git log --oneline -5
-next loop      # If good, continue
+sprint loop      # If good, continue
 ```
 
 ### Monitor Progress
 
 ```bash
-watch -n 30 'next status'
+watch -n 30 'sprint status'
 # Or
 tail -f LOG.md
 ```
@@ -82,7 +82,7 @@ Provide context that persists across iterations:
 
 ## Comparison with Ralph
 
-| Aspect | next loop | Pure Ralph |
+| Aspect | sprint loop | Pure Ralph |
 |--------|-----------|------------|
 | Task selection | Explicit queue | Agent picks |
 | Dependencies | Enforced | Agent figures out |

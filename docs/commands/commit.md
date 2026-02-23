@@ -1,20 +1,20 @@
-# next commit
+# sprint commit
 
 Commit changes during a task.
 
 ## Usage
 
 ```bash
-next commit [message]
-next c [message]
+sprint commit [message]
+sprint c [message]
 ```
 
 ## Examples
 
 ```bash
-next commit              # Uses task's commit message
-next commit "my message" # Custom message
-next c "wip: halfway"    # Short form
+sprint commit              # Uses task's commit message
+sprint commit "my message" # Custom message
+sprint c "wip: halfway"    # Short form
 ```
 
 ## Behavior

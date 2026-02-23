@@ -7,7 +7,7 @@ Get up and running in 5 minutes.
 ```bash
 mkdir my-project && cd my-project
 git init
-next init
+sprint init
 ```
 
 This creates:
@@ -53,7 +53,7 @@ Create a main() function that:
 ## 3. Check Status
 
 ```bash
-next status
+sprint status
 ```
 
 Output:
@@ -73,7 +73,7 @@ Done: 0 | In Progress: 0 | Ready: 1 | Blocked: 2
 ## 4. Run a Single Task
 
 ```bash
-next run
+sprint run
 ```
 
 This will:
@@ -86,7 +86,7 @@ This will:
 ## 5. Or Run All Tasks (Loop Mode)
 
 ```bash
-next loop
+sprint loop
 ```
 
 This runs continuously until the queue is empty. Press `Ctrl+C` to stop.
@@ -94,8 +94,8 @@ This runs continuously until the queue is empty. Press `Ctrl+C` to stop.
 ## 6. Check Progress
 
 ```bash
-next status  # See current state
-next log     # See completion history
+sprint status  # See current state
+sprint log     # See completion history
 git log      # See commits from each task
 ```
 

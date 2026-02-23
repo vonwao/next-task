@@ -1,14 +1,14 @@
-# next-task
+# sprint
 
-> **Turn messy AI agent sessions into clean, reviewable commits — automatically.**
+> **Short loops. Real progress.**
 
-Define tasks in markdown. Assign agents. Run the queue. Get clean git history.
+Not sprint planning. Not Jira. Sprint is a CLI for running AI work in focused loops.
 
 ```bash
-next loop   # Runs all tasks, one clean commit each
+sprint loop   # Runs all tasks, one clean commit each
 ```
 
-[![Docs](https://img.shields.io/badge/docs-online-blue)](https://vonwao.github.io/next-task/)
+[![Docs](https://img.shields.io/badge/docs-online-blue)](https://vonwao.github.io/sprint-cli/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 ---
@@ -17,13 +17,13 @@ next loop   # Runs all tasks, one clean commit each
 
 AI coding agents (Claude Code, Codex) are powerful but chaotic:
 - They wander off-topic
-- Progress is hard to track  
+- Progress is hard to track
 - Git history becomes a mess
 - You lose time re-explaining context
 
 ## The Solution
 
-**next-task** gives you:
+**sprint** gives you:
 
 ```markdown
 # TASKS.md
@@ -31,7 +31,7 @@ AI coding agents (Claude Code, Codex) are powerful but chaotic:
 ### T1: Set up project @codex
 **Commit:** `chore: initialize project`
 
-### T2: Add user authentication @claude  
+### T2: Add user authentication @claude
 **Depends:** T1
 **Commit:** `feat: add auth`
 
@@ -43,7 +43,7 @@ AI coding agents (Claude Code, Codex) are powerful but chaotic:
 Then:
 
 ```bash
-next loop
+sprint loop
 ```
 
 Each task → right agent → clean commit → next task. Walk away and come back to a working project with reviewable history.
@@ -54,25 +54,25 @@ Each task → right agent → clean commit → next task. Walk away and come bac
 
 ```bash
 # Install
-git clone https://github.com/vonwao/next-task.git ~/.next-task
-export PATH="$HOME/.next-task/src:$PATH"
+git clone https://github.com/vonwao/sprint-cli.git ~/.sprint-cli
+export PATH="$HOME/.sprint-cli/src:$PATH"
 
 # Try the demo
-git clone https://github.com/vonwao/next-task-demo.git
-cd next-task-demo
-next loop
+git clone https://github.com/vonwao/sprint-cli-demo.git
+cd sprint-cli-demo
+sprint loop
 ```
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `next` | Run next ready task |
-| `next loop` | 🔄 Run all tasks continuously |
-| `next status` | Show ready / blocked / done |
-| `next preview` | Dry run — show what would happen |
-| `next done` | Manually mark task complete |
-| `next skip` | Skip current task |
+| `sprint` | Run next ready task |
+| `sprint loop` | Run all tasks continuously |
+| `sprint status` | Show ready / blocked / done |
+| `sprint preview` | Dry run — show what would happen |
+| `sprint done` | Manually mark task complete |
+| `sprint skip` | Skip current task |
 
 ## Task Format
 
@@ -92,7 +92,7 @@ Task description. The agent sees this as its prompt.
 ## How It Works
 
 ```
-TASKS.md          →  next picks ready task
+TASKS.md          →  sprint picks ready task
                   →  launches assigned agent
                   →  agent does work
                   →  auto-commits with clean message
@@ -102,14 +102,14 @@ LOG.md            →  append-only history
 
 State lives in files. Restarts are safe. Git tracks everything.
 
-## Loop Mode (Ralph-style)
+## Loop Mode
 
 Inspired by the [Ralph Wiggum pattern](https://ghuntley.com/ralph/):
 
 ```bash
-next loop        # Run until queue empty
-next loop 5      # Max 5 iterations
-next loop --push # Push after each commit
+sprint loop        # Run until queue empty
+sprint loop 5      # Max 5 iterations
+sprint loop --push # Push after each commit
 ```
 
 Kick it off and walk away. Come back to clean commits.
@@ -118,12 +118,7 @@ Kick it off and walk away. Come back to clean commits.
 
 ## Docs
 
-📖 **[Full Documentation](https://vonwao.github.io/next-task/)**
-
-- [Getting Started](https://vonwao.github.io/next-task/#/getting-started/introduction)
-- [Task File Format](https://vonwao.github.io/next-task/#/concepts/task-files)
-- [Loop Mode](https://vonwao.github.io/next-task/#/concepts/loop-mode)
-- [Command Reference](https://vonwao.github.io/next-task/#/commands/run)
+📖 **[Full Documentation](https://vonwao.github.io/sprint-cli/)**
 
 ---
 
